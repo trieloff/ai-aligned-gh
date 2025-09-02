@@ -23,7 +23,7 @@ AI-Aligned-GH is a transparent wrapper that:
 
 ```bash
 # One-line install
-curl -fsSL https://raw.githubusercontent.com/yourusername/ai-aligned-gh/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/trieloff/ai-aligned-gh/main/install.sh | sh
 
 # Add to PATH (if needed)
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
