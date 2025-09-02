@@ -187,6 +187,50 @@ get_repo_info() {
     return 1
 }
 
+# Function to check if a repo should be ignored
+should_ignore_repo() {
+    local owner=$1
+    local repo=$2
+    local config_file="$HOME/.config/ai-aligned-gh/ignorerepos"
+    
+    debug_log "Looking for ignore file at: $config_file"
+    
+    # If config file doesn't exist, don't ignore
+    if [ ! -f "$config_file" ]; then
+        debug_log "Ignore file not found"
+        return 1
+    fi
+    
+    debug_log "Found ignore file, checking patterns"
+    
+    # Check each pattern in the ignore file
+    while IFS= read -r pattern || [ -n "$pattern" ]; do
+        # Skip empty lines and comments
+        if [[ -z "$pattern" ]] || [[ "$pattern" =~ ^[[:space:]]*# ]]; then
+            continue
+        fi
+        
+        # Trim whitespace
+        pattern=$(echo "$pattern" | xargs)
+        
+        debug_log "Checking pattern: '$pattern' against '$owner/$repo'"
+        
+        # Check if pattern matches owner/repo exactly
+        if [[ "$owner/$repo" == "$pattern" ]]; then
+            debug_log "Repository $owner/$repo matches ignore pattern: $pattern"
+            return 0
+        fi
+        
+        # Check if pattern is owner/* (matches all repos in org)
+        if [[ "$pattern" == *"/*" ]] && [[ "$owner" == "${pattern%/*}" ]]; then
+            debug_log "Repository $owner/$repo matches org pattern: $pattern"
+            return 0
+        fi
+    done < "$config_file"
+    
+    return 1
+}
+
 # Function to check if app is installed
 check_app_installation() {
     local owner=$1
@@ -298,14 +342,21 @@ if ! read -r owner repo < <(get_repo_info); then
     exec "$GH_BIN" "$@"
 fi
 
+# Check if this repo should be ignored
+debug_log "Checking if $owner/$repo should be ignored"
+if should_ignore_repo "$owner" "$repo"; then
+    debug_log "Repository is in ignore list, proceeding without bot attribution"
+    exec "$GH_BIN" "$@"
+fi
+debug_log "Repository not in ignore list, checking app installation"
+
 # Check if the app is installed
 if ! check_app_installation "$owner" "$repo" "$USER_TOKEN"; then
-    if [ "$DEBUG" = "true" ]; then
-        echo "[WARNING] GitHub App '$APP_NAME' is not installed on $owner/$repo" >&2
-        echo "[WARNING] Actions will be attributed to you directly, not to a bot" >&2
-        echo "[WARNING] To enable bot attribution, install the app at: https://github.com/apps/$APP_NAME" >&2
-    fi
-    exec "$GH_BIN" "$@"
+    echo "[ERROR] GitHub App '$APP_NAME' is not installed on $owner/$repo" >&2
+    echo "[ERROR] AI-driven GitHub operations are blocked for safety" >&2
+    echo "[ERROR] To enable bot attribution, install the app at: https://github.com/apps/$APP_NAME" >&2
+    echo "[ERROR] Or add this repo to ~/.config/ai-aligned-gh/ignorerepos to bypass this check" >&2
+    exit 1
 fi
 
 # Exchange the token
