@@ -1,0 +1,323 @@
+#!/bin/bash
+
+# gh wrapper - Automatically detect AI tools and use bot token attribution via as-a-bot service
+# This wrapper intercepts gh CLI calls and exchanges tokens when AI usage is detected
+
+# Configuration
+BROKER_URL="${AS_A_BOT_URL:-https://as-bot-worker.minivelos.workers.dev}"
+APP_NAME="as-a-bot-app"
+DEBUG="${GH_AI_DEBUG:-false}"
+
+# Function to print debug messages
+debug_log() {
+    if [ "$DEBUG" = "true" ]; then
+        echo "[DEBUG] $*" >&2
+    fi
+}
+
+# Function to check if a process name contains a pattern (case-insensitive)
+process_contains() {
+    local pid=$1
+    local pattern=$2
+
+    # Get process command and name
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        ps -p "$pid" -o comm= 2>/dev/null | grep -qi "$pattern" || \
+        ps -p "$pid" -o command= 2>/dev/null | grep -qi "$pattern"
+    else
+        # Linux
+        ps -p "$pid" -o comm= 2>/dev/null | grep -qi "$pattern" || \
+        ps -p "$pid" -o cmd= 2>/dev/null | grep -qi "$pattern"
+    fi
+}
+
+# Function to detect which AI tool is running
+detect_ai_tool() {
+    local current_pid=$$
+    local max_depth=10
+    local depth=0
+
+    debug_log "Starting AI detection from PID $current_pid"
+
+    # Check environment variables first
+    if [ -n "$GEMINI_CLI" ]; then
+        debug_log "Detected Gemini via environment variable"
+        echo "gemini"
+        return
+    fi
+    if [ -n "$QWEN_CODE" ]; then
+        debug_log "Detected Qwen via environment variable"
+        echo "qwen"
+        return
+    fi
+    if [ -n "$CLAUDE_CODE" ] || [ -n "$ANTHROPIC_SHELL" ]; then
+        debug_log "Detected Claude via environment variable"
+        echo "claude"
+        return
+    fi
+    if [ -n "$CURSOR_AI" ]; then
+        debug_log "Detected Cursor via environment variable"
+        echo "cursor"
+        return
+    fi
+    if [ -n "$ZED_AI" ]; then
+        debug_log "Detected Zed via environment variable"
+        echo "zed"
+        return
+    fi
+    if [ -n "$OPENCODE_AI" ]; then
+        debug_log "Detected OpenCode via environment variable"
+        echo "opencode"
+        return
+    fi
+
+    # Walk up the process tree
+    while [ $depth -lt $max_depth ]; do
+        # Get parent PID
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS
+            current_pid=$(ps -p "$current_pid" -o ppid= 2>/dev/null | tr -d ' ')
+        else
+            # Linux
+            current_pid=$(ps -p "$current_pid" -o ppid= 2>/dev/null | tr -d ' ')
+        fi
+
+        # Check if we've reached the top
+        if [ -z "$current_pid" ] || [ "$current_pid" -eq 1 ] || [ "$current_pid" -eq 0 ]; then
+            debug_log "Reached top of process tree without finding AI"
+            break
+        fi
+
+        debug_log "Checking PID $current_pid at depth $depth"
+
+        # Check for AI tool patterns in process names
+        if process_contains "$current_pid" "claude"; then
+            debug_log "Detected Claude in process tree"
+            echo "claude"
+            return
+        elif process_contains "$current_pid" "gemini"; then
+            debug_log "Detected Gemini in process tree"
+            echo "gemini"
+            return
+        elif process_contains "$current_pid" "qwen"; then
+            debug_log "Detected Qwen in process tree"
+            echo "qwen"
+            return
+        elif process_contains "$current_pid" "zed"; then
+            debug_log "Detected Zed in process tree"
+            echo "zed"
+            return
+        elif process_contains "$current_pid" "opencode"; then
+            debug_log "Detected OpenCode in process tree"
+            echo "opencode"
+            return
+        elif process_contains "$current_pid" "cursor"; then
+            debug_log "Detected Cursor in process tree"
+            echo "cursor"
+            return
+        fi
+
+        depth=$((depth + 1))
+    done
+
+    debug_log "No AI tool detected"
+    echo "none"
+}
+
+# Function to find the real gh executable
+find_real_gh() {
+    # Common locations for gh
+    local gh_paths=(
+        "/usr/bin/gh"
+        "/usr/local/bin/gh"
+        "/opt/homebrew/bin/gh"
+        "/opt/local/bin/gh"
+        "/home/linuxbrew/.linuxbrew/bin/gh"
+        "/snap/bin/gh"
+    )
+
+    for gh_path in "${gh_paths[@]}"; do
+        if [ -x "$gh_path" ]; then
+            echo "$gh_path"
+            return
+        fi
+    done
+
+    # If not found in common locations, search PATH excluding our own directory
+    local our_dir
+    our_dir=$(dirname "$0")
+    local IFS=:
+    for dir in $PATH; do
+        # Skip our own directory to avoid infinite recursion
+        if [ "$dir" != "$our_dir" ] && [ -x "$dir/gh" ]; then
+            echo "$dir/gh"
+            return
+        fi
+    done
+
+    echo "gh not found" >&2
+    exit 1
+}
+
+# Function to get current repository info
+get_repo_info() {
+    # Try to get repo info from current directory
+    local origin_url
+    origin_url=$(git config --get remote.origin.url 2>/dev/null || echo "")
+    
+    if [ -z "$origin_url" ]; then
+        debug_log "No git remote origin found"
+        return 1
+    fi
+
+    debug_log "Found origin URL: $origin_url"
+
+    # Parse GitHub owner/repo from various URL formats
+    if [[ "$origin_url" =~ github\.com[:/]([^/]+)/([^/]+)(\.git)?$ ]]; then
+        owner="${BASH_REMATCH[1]}"
+        repo="${BASH_REMATCH[2]}"
+        repo="${repo%.git}"  # Remove .git suffix if present
+        echo "$owner" "$repo"
+        debug_log "Parsed owner: $owner, repo: $repo"
+        return 0
+    fi
+
+    debug_log "Could not parse GitHub owner/repo from URL"
+    return 1
+}
+
+# Function to check if app is installed
+check_app_installation() {
+    local owner=$1
+    local repo=$2
+    local token=$3
+
+    debug_log "Checking app installation for $owner/$repo"
+
+    local response
+    response=$(curl -sS -X POST "${BROKER_URL}/token" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $token" \
+        -d "{\"owner\":\"${owner}\",\"repo\":\"${repo}\"}" \
+        -w "\n__HTTP_STATUS__%{http_code}" 2>/dev/null || echo "ERROR")
+
+    local http_status
+    http_status=$(echo "$response" | grep "__HTTP_STATUS__" | sed 's/__HTTP_STATUS__//')
+    
+    if [ "$http_status" = "201" ]; then
+        debug_log "App is installed"
+        return 0
+    else
+        debug_log "App is not installed (HTTP $http_status)"
+        return 1
+    fi
+}
+
+# Function to exchange token using as-a-bot service
+exchange_token() {
+    local owner=$1
+    local repo=$2
+    local user_token=$3
+
+    debug_log "Exchanging token for $owner/$repo"
+
+    local response
+    response=$(curl -sS -X POST "${BROKER_URL}/token" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $user_token" \
+        -d "{\"owner\":\"${owner}\",\"repo\":\"${repo}\"}" 2>/dev/null)
+
+    local bot_token
+    bot_token=$(echo "$response" | jq -r '.token' 2>/dev/null)
+
+    if [ -z "$bot_token" ] || [ "$bot_token" = "null" ]; then
+        debug_log "Failed to get bot token from response"
+        return 1
+    fi
+
+    debug_log "Successfully obtained bot token"
+    echo "$bot_token"
+    return 0
+}
+
+# Main script
+GH_BIN=$(find_real_gh)
+debug_log "Found gh at: $GH_BIN"
+
+# Detect if an AI tool is running
+AI_TOOL=$(detect_ai_tool)
+
+if [ "$AI_TOOL" = "none" ]; then
+    # No AI detected, pass through to regular gh
+    debug_log "No AI detected, passing through to gh"
+    exec "$GH_BIN" "$@"
+fi
+
+# AI detected - show info if in debug mode or if it's a write operation
+if [ "$DEBUG" = "true" ]; then
+    echo "[INFO] AI detected: $AI_TOOL - checking for bot token exchange..." >&2
+fi
+
+# Check if this is a read-only operation (we might not need token exchange for these)
+NEEDS_TOKEN_EXCHANGE=true
+case "$1" in
+    help|--help|-h|version|--version)
+        NEEDS_TOKEN_EXCHANGE=false
+        ;;
+    *)
+        # For subcommands, check if they're read-only
+        case "$1 $2" in
+            "auth status"|"repo view"|"pr view"|"issue view"|"pr list"|"issue list")
+                NEEDS_TOKEN_EXCHANGE=false
+                ;;
+        esac
+        ;;
+esac
+
+if [ "$NEEDS_TOKEN_EXCHANGE" = "false" ]; then
+    debug_log "Read-only operation, skipping token exchange"
+    exec "$GH_BIN" "$@"
+fi
+
+# Get the user's GitHub token
+USER_TOKEN="${GH_TOKEN:-$GITHUB_TOKEN}"
+if [ -z "$USER_TOKEN" ]; then
+    # Try to get token from gh auth
+    USER_TOKEN=$("$GH_BIN" auth token 2>/dev/null || echo "")
+fi
+
+if [ -z "$USER_TOKEN" ]; then
+    debug_log "No GitHub token found, proceeding without bot attribution"
+    exec "$GH_BIN" "$@"
+fi
+
+# Try to get repository info
+if ! read -r owner repo < <(get_repo_info); then
+    debug_log "Could not determine repository, proceeding without bot attribution"
+    exec "$GH_BIN" "$@"
+fi
+
+# Check if the app is installed
+if ! check_app_installation "$owner" "$repo" "$USER_TOKEN"; then
+    if [ "$DEBUG" = "true" ]; then
+        echo "[WARNING] GitHub App '$APP_NAME' is not installed on $owner/$repo" >&2
+        echo "[WARNING] Actions will be attributed to you directly, not to a bot" >&2
+        echo "[WARNING] To enable bot attribution, install the app at: https://github.com/apps/$APP_NAME" >&2
+    fi
+    exec "$GH_BIN" "$@"
+fi
+
+# Exchange the token
+BOT_TOKEN=$(exchange_token "$owner" "$repo" "$USER_TOKEN")
+if [ -z "$BOT_TOKEN" ]; then
+    debug_log "Failed to exchange token, proceeding with user token"
+    exec "$GH_BIN" "$@"
+fi
+
+if [ "$DEBUG" = "true" ]; then
+    echo "[INFO] Successfully exchanged token - actions will be attributed to bot on behalf of user" >&2
+fi
+
+# Execute gh with the bot token
+GH_TOKEN="$BOT_TOKEN" exec "$GH_BIN" "$@"
