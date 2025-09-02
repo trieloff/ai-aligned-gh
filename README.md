@@ -252,6 +252,20 @@ gh api repos/OWNER/REPO/issues/NUMBER/comments --jq '.[-1] | {
 - **Direct user action**: `user: "your-username"`, `app: "none"`
   - Regular human action without any AI involvement
 
+### ⚠️ Important API Limitation
+
+The `performed_via_github_app` field is **inconsistently available** across GitHub API endpoints (undocumented):
+
+| Action | Has `performed_via_github_app`? |
+|--------|----------------------------------|
+| Issue creation | ✅ Yes |
+| Issue comments | ✅ Yes |
+| PR comments | ✅ Yes |
+| **Pull request creation** | ❌ **No** |
+| PR reviews | ❌ No |
+
+This is a GitHub API limitation, not an issue with our implementation. Even with proper user-to-server tokens, PRs themselves don't include app attribution in the API response.
+
 ### Quick Check Script
 
 Check all recent activity in a repo:
