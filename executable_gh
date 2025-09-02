@@ -334,12 +334,24 @@ get_cached_token() {
         local cached_token
         cached_token=$(cat "$cache_file")
         
-        # Try to use the cached token to verify it's still valid
-        local test_response
+        # Verify token is still valid and check its type
+        local test_response rate_limit
         test_response=$(GH_TOKEN="$cached_token" "$GH_BIN" api user 2>/dev/null)
         
         if [ $? -eq 0 ]; then
-            debug_log "Using valid cached token"
+            # Check if this is a user-to-server token (ghu_ prefix)
+            if [[ "$cached_token" == ghu_* ]]; then
+                debug_log "Using valid user-to-server token (ghu_ prefix)"
+                
+                # Optionally check rate limit to confirm it's a proper GitHub App token
+                if [ "$DEBUG" = "true" ]; then
+                    rate_limit=$(GH_TOKEN="$cached_token" "$GH_BIN" api rate_limit --jq '.rate.limit' 2>/dev/null)
+                    debug_log "Token rate limit: $rate_limit (15000=GitHub App user token, 5000=OAuth token)"
+                fi
+            else
+                debug_log "WARNING: Token doesn't have ghu_ prefix, may not have app attribution"
+            fi
+            
             echo "$cached_token"
             return 0
         else
@@ -597,7 +609,12 @@ if [ -z "$BOT_TOKEN" ]; then
 fi
 
 if [ "$DEBUG" = "true" ]; then
-    echo "[INFO] Using user-to-server token - actions will be attributed to user with app badge" >&2
+    # Verify token type
+    if [[ "$BOT_TOKEN" == ghu_* ]]; then
+        echo "[INFO] Using user-to-server token (ghu_) - actions will be attributed as 'you (via as-a-bot[bot])'" >&2
+    else
+        echo "[WARNING] Token doesn't have expected ghu_ prefix - attribution may not work correctly" >&2
+    fi
 fi
 
 # Execute gh with the user-to-server token
