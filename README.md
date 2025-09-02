@@ -189,6 +189,83 @@ With AI-Aligned-GH:
 as-a-bot[bot] commented on behalf of @trieloff: "This has been fixed in the latest commit"
 ```
 
+## 🔍 Verifying AI Attribution
+
+Want to check if a GitHub action was performed by an AI? Use these `gh api` commands to inspect the provenance:
+
+### Check Issue Attribution
+```bash
+# Check who created an issue and which app (if any) was used
+gh api repos/OWNER/REPO/issues/NUMBER --jq '{
+  user: .user.login,
+  app: .performed_via_github_app.slug // "none"
+}'
+
+# Example
+gh api repos/trieloff/ai-aligned-gh/issues/15 --jq '{
+  user: .user.login,
+  app: .performed_via_github_app.slug
+}'
+# Output: {"user": "trieloff", "app": "as-a-bot"}
+```
+
+### Check Issue Comment Attribution
+```bash
+# Check the latest comment on an issue
+gh api repos/OWNER/REPO/issues/NUMBER/comments --jq '.[-1] | {
+  user: .user.login,
+  app: .performed_via_github_app.slug // "none"
+}'
+```
+
+### Check Pull Request Attribution
+```bash
+# Check who created a PR
+gh api repos/OWNER/REPO/pulls/NUMBER --jq '{
+  user: .user.login,
+  app: .performed_via_github_app.slug // "none"
+}'
+
+# Note: PRs created with installation tokens show user as "app-name[bot]"
+# PRs created with user-to-server tokens show the actual username
+```
+
+### Check PR Comment Attribution
+```bash
+# Check the latest comment on a PR (same endpoint as issues)
+gh api repos/OWNER/REPO/issues/NUMBER/comments --jq '.[-1] | {
+  user: .user.login,
+  app: .performed_via_github_app.slug // "none"
+}'
+```
+
+### Understanding the Results
+
+- **User-to-server token** (correct): `user: "your-username"`, `app: "as-a-bot"`
+  - Actions are attributed to you but marked as performed via the app
+  - This is what ai-aligned-gh creates
+
+- **Installation token** (incorrect): `user: "as-a-bot[bot]"`, `app: "none"`
+  - Actions appear to come from the bot itself
+  - Loses human attribution
+
+- **Direct user action**: `user: "your-username"`, `app: "none"`
+  - Regular human action without any AI involvement
+
+### Quick Check Script
+
+Check all recent activity in a repo:
+```bash
+# List recent issues with attribution
+for issue in $(gh issue list --limit 5 --json number --jq '.[].number'); do
+  echo -n "Issue #$issue: "
+  gh api repos/OWNER/REPO/issues/$issue --jq '{
+    user: .user.login,
+    app: .performed_via_github_app.slug // "none"
+  }'
+done
+```
+
 ## 🚧 Troubleshooting
 
 ### Wrapper Not Being Called
