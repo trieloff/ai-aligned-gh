@@ -1,6 +1,6 @@
 # 🤖 AI-Aligned-GH: The Transparent GitHub CLI Wrapper for AI Attribution
 
-![AI-Aligned-GH Hero Image](https://github.com/user-attachments/assets/hero-image.png)
+![create_a_modern_m_image](https://github.com/user-attachments/assets/969463fc-4276-4ed1-8e20-6fee8aafeb3c)
 
 A transparent wrapper for the GitHub CLI (`gh`) that automatically detects when it's being invoked by an AI tool and ensures all actions are properly attributed to a bot acting on behalf of the user, rather than appearing to come directly from the user.
 
