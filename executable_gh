@@ -393,8 +393,9 @@ get_cached_token() {
     debug_log "Starting new device flow"
     
     # Start device flow
+    # Don't pass scopes for GitHub Apps - they use fine-grained permissions
     local flow_response
-    flow_response=$(start_device_flow "repo")
+    flow_response=$(start_device_flow "")
     
     if [ -z "$flow_response" ]; then
         debug_log "Failed to start device flow"
