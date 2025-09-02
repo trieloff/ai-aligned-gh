@@ -243,7 +243,7 @@ echo
 print_color "$YELLOW" "Next steps:"
 print_color "$WHITE" "  1. Ensure $INSTALL_DIR is in your PATH (see above if needed)"
 print_color "$WHITE" "  2. Install the as-a-bot GitHub App on your repositories:"
-print_color "$BLUE" "     https://github.com/apps/as-a-bot-app"
+print_color "$BLUE" "     https://github.com/apps/as-a-bot"
 print_color "$WHITE" "  3. Test with: GH_AI_DEBUG=true gh auth status"
 echo
 print_color "$GREEN" "Enjoy safer AI-assisted development!"

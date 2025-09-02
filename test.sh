@@ -132,7 +132,7 @@ echo ""
 
 print_info "Basic functionality tests completed"
 print_info "To test token exchange with a real repository:"
-echo "  1. Install the as-a-bot app: https://github.com/apps/as-a-bot-app"
+echo "  1. Install the as-a-bot app: https://github.com/apps/as-a-bot"
 echo "  2. Navigate to a GitHub repository with the app installed"
 echo "  3. Run: GH_AI_DEBUG=true CLAUDE_CODE=1 gh pr create --dry-run"
 echo ""

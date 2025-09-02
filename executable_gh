@@ -5,7 +5,7 @@
 
 # Configuration
 BROKER_URL="${AS_A_BOT_URL:-https://as-bot-worker.minivelos.workers.dev}"
-APP_NAME="as-a-bot-app"
+APP_NAME="as-a-bot"
 DEBUG="${GH_AI_DEBUG:-false}"
 
 # Function to print debug messages

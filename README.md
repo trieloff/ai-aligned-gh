@@ -76,7 +76,7 @@ Read-only operations (like `gh pr list`) skip token exchange for performance.
 ## 📋 Prerequisites
 
 1. **GitHub CLI**: Install from [cli.github.com](https://cli.github.com/)
-2. **GitHub App**: Install [as-a-bot-app](https://github.com/apps/as-a-bot-app) on your repositories
+2. **GitHub App**: Install [as-a-bot](https://github.com/apps/as-a-bot) on your repositories
 3. **Authentication**: Be authenticated with `gh auth login`
 4. **jq** (recommended): For JSON parsing during token exchange
 
@@ -208,7 +208,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 If you see warnings about the app not being installed:
 
-1. Visit https://github.com/apps/as-a-bot-app
+1. Visit https://github.com/apps/as-a-bot
 2. Click "Install" or "Configure"
 3. Select the repositories where you want AI attribution
 4. Save the configuration
