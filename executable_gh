@@ -251,6 +251,24 @@ start_device_flow() {
     return 0
 }
 
+# Function to start web flow authentication
+start_web_flow() {
+    debug_log "Starting web flow authentication"
+    
+    local response
+    response=$(curl -sS -X POST "${BROKER_URL}/auth/start" \
+        -H "Content-Type: application/json" \
+        -d "{}" 2>/dev/null)
+    
+    if [ -z "$response" ]; then
+        debug_log "Failed to start web flow"
+        return 1
+    fi
+    
+    echo "$response"
+    return 0
+}
+
 # Function to poll for device flow token in background
 poll_for_token_background() {
     local device_code=$1
@@ -389,12 +407,78 @@ get_cached_token() {
         fi
     fi
     
-    # No valid cached token or in-progress flow, start new device flow
-    debug_log "Starting new device flow"
+    # No valid cached token or in-progress flow, start new auth flow
+    debug_log "Starting new authentication flow"
     
-    # Start device flow
-    # Don't pass scopes for GitHub Apps - they use fine-grained permissions
+    # Try web flow first (should give user-to-server tokens)
     local flow_response
+    flow_response=$(start_web_flow)
+    
+    if [ -n "$flow_response" ]; then
+        # Web flow started successfully
+        local auth_url state
+        auth_url=$(echo "$flow_response" | jq -r '.auth_url' 2>/dev/null)
+        state=$(echo "$flow_response" | jq -r '.state' 2>/dev/null)
+        
+        if [ -n "$auth_url" ] && [ -n "$state" ]; then
+            # Show user instructions for web flow
+            echo "" >&2
+            echo "=================================================================" >&2
+            echo "  GitHub App Authentication Required for AI-Aligned Operations" >&2
+            echo "=================================================================" >&2
+            echo "" >&2
+            echo "  AI tool detected: $AI_TOOL" >&2
+            echo "" >&2
+            echo "  Please authorize the '$APP_NAME' GitHub App:" >&2
+            echo "" >&2
+            echo "  1. Open this URL in your browser:" >&2
+            echo "     $auth_url" >&2
+            echo "" >&2
+            echo "  2. Authorize the application" >&2
+            echo "" >&2
+            echo "  Authentication will complete in the background." >&2
+            echo "  Try your command again after authorizing." >&2
+            echo "" >&2
+            
+            # Save state for polling
+            echo "$state" > "$state_file"
+            chmod 600 "$state_file"
+            
+            # Start background polling for web flow
+            (
+                nohup bash -c "
+                    for i in {1..60}; do
+                        response=\$(curl -sS -X POST '${BROKER_URL}/auth/poll' \
+                            -H 'Content-Type: application/json' \
+                            -d '{\"state\":\"$state\"}' 2>/dev/null)
+                        
+                        token=\$(echo \"\$response\" | jq -r '.access_token' 2>/dev/null)
+                        
+                        if [ -n \"\$token\" ] && [ \"\$token\" != \"null\" ]; then
+                            echo \"\$token\" > '$cache_file'
+                            chmod 600 '$cache_file'
+                            echo 'completed' > '${state_file}.status'
+                            rm -f '$state_file'
+                            break
+                        fi
+                        
+                        error=\$(echo \"\$response\" | jq -r '.error' 2>/dev/null)
+                        if [ \"\$error\" = \"authorization_pending\" ]; then
+                            sleep 5
+                        else
+                            break
+                        fi
+                    done
+                " </dev/null >/dev/null 2>&1 &
+            ) &
+            disown -h %1
+            
+            return 1
+        fi
+    fi
+    
+    # Fall back to device flow if web flow fails
+    debug_log "Web flow failed, falling back to device flow"
     flow_response=$(start_device_flow "")
     
     if [ -z "$flow_response" ]; then
