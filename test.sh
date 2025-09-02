@@ -106,7 +106,7 @@ fi
 
 # Test 6: Test read-only operation detection
 print_test "Testing read-only operation detection..."
-OUTPUT=$(GH_AI_DEBUG=true CLAUDE_CODE=1 gh auth status 2>&1)
+OUTPUT=$(GH_AI_DEBUG=true CLAUDE_CODE=1 gh auth status 2>&1 || true)
 if echo "$OUTPUT" | grep -q "Read-only operation, skipping token exchange"; then
     print_pass "Read-only operations correctly skip token exchange"
 else
@@ -116,7 +116,7 @@ fi
 # Test 7: Check repository detection (if in a git repo)
 print_test "Testing repository detection..."
 if [ -d .git ]; then
-    OUTPUT=$(GH_AI_DEBUG=true gh auth status 2>&1)
+    OUTPUT=$(GH_AI_DEBUG=true gh auth status 2>&1 || true)
     if echo "$OUTPUT" | grep -q "Found origin URL"; then
         print_pass "Repository detection works"
     else
