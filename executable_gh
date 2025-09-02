@@ -1,53 +1,18 @@
 #!/bin/bash
 
-# gh-ai-aligned: A gh CLI extension that ensures AI actions are properly attributed
-# This wraps the gh CLI to detect AI usage and exchange tokens via as-a-bot service
-# when an AI is detected, ensuring all actions are attributed to a bot acting on behalf
-# of the user, not the user directly.
-
-set -e
+# gh wrapper - Automatically detect AI tools and use bot token attribution via as-a-bot service
+# This wrapper intercepts gh CLI calls and exchanges tokens when AI usage is detected
 
 # Configuration
 BROKER_URL="${AS_A_BOT_URL:-https://as-bot-worker.minivelos.workers.dev}"
 APP_NAME="as-a-bot-app"
 DEBUG="${GH_AI_DEBUG:-false}"
 
-# Colors for output (only if terminal supports it)
-if [ -t 1 ] && [ -t 2 ]; then
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    BLUE='\033[0;34m'
-    NC='\033[0m' # No Color
-else
-    RED=''
-    GREEN=''
-    YELLOW=''
-    BLUE=''
-    NC=''
-fi
-
-# Debug logging
+# Function to print debug messages
 debug_log() {
     if [ "$DEBUG" = "true" ]; then
-        echo -e "${BLUE}[DEBUG]${NC} $*" >&2
+        echo "[DEBUG] $*" >&2
     fi
-}
-
-# Error handling
-error_exit() {
-    echo -e "${RED}[ERROR]${NC} $*" >&2
-    exit 1
-}
-
-# Warning messages
-warn() {
-    echo -e "${YELLOW}[WARNING]${NC} $*" >&2
-}
-
-# Info messages
-info() {
-    echo -e "${GREEN}[INFO]${NC} $*" >&2
 }
 
 # Function to check if a process name contains a pattern (case-insensitive)
@@ -160,6 +125,41 @@ detect_ai_tool() {
     echo "none"
 }
 
+# Function to find the real gh executable
+find_real_gh() {
+    # Common locations for gh
+    local gh_paths=(
+        "/usr/bin/gh"
+        "/usr/local/bin/gh"
+        "/opt/homebrew/bin/gh"
+        "/opt/local/bin/gh"
+        "/home/linuxbrew/.linuxbrew/bin/gh"
+        "/snap/bin/gh"
+    )
+
+    for gh_path in "${gh_paths[@]}"; do
+        if [ -x "$gh_path" ]; then
+            echo "$gh_path"
+            return
+        fi
+    done
+
+    # If not found in common locations, search PATH excluding our own directory
+    local our_dir
+    our_dir=$(dirname "$0")
+    local IFS=:
+    for dir in $PATH; do
+        # Skip our own directory to avoid infinite recursion
+        if [ "$dir" != "$our_dir" ] && [ -x "$dir/gh" ]; then
+            echo "$dir/gh"
+            return
+        fi
+    done
+
+    echo "gh not found" >&2
+    exit 1
+}
+
 # Function to get current repository info
 get_repo_info() {
     # Try to get repo info from current directory
@@ -241,97 +241,83 @@ exchange_token() {
     return 0
 }
 
-# Function to find the real gh executable
-find_real_gh() {
-    # Common locations for gh
-    local gh_paths=(
-        "/usr/bin/gh"
-        "/usr/local/bin/gh"
-        "/opt/homebrew/bin/gh"
-        "/opt/local/bin/gh"
-        "/home/linuxbrew/.linuxbrew/bin/gh"
-    )
+# Main script
+GH_BIN=$(find_real_gh)
+debug_log "Found gh at: $GH_BIN"
 
-    for gh_path in "${gh_paths[@]}"; do
-        if [ -x "$gh_path" ]; then
-            echo "$gh_path"
-            return
-        fi
-    done
+# Detect if an AI tool is running
+AI_TOOL=$(detect_ai_tool)
 
-    # If not found in common locations, search PATH excluding our own directory
-    local our_dir
-    our_dir=$(dirname "$0")
-    local IFS=:
-    for dir in $PATH; do
-        # Skip our own directory and look for the real gh
-        if [ "$dir" != "$our_dir" ] && [ -x "$dir/gh" ]; then
-            # Make sure it's not another wrapper
-            if ! grep -q "gh-ai-aligned" "$dir/gh" 2>/dev/null; then
-                echo "$dir/gh"
-                return
-            fi
-        fi
-    done
+if [ "$AI_TOOL" = "none" ]; then
+    # No AI detected, pass through to regular gh
+    debug_log "No AI detected, passing through to gh"
+    exec "$GH_BIN" "$@"
+fi
 
-    error_exit "gh CLI not found. Please install GitHub CLI first."
-}
+# AI detected - show info if in debug mode or if it's a write operation
+if [ "$DEBUG" = "true" ]; then
+    echo "[INFO] AI detected: $AI_TOOL - checking for bot token exchange..." >&2
+fi
 
-# Main script logic
-main() {
-    # Find the real gh executable
-    GH_BIN=$(find_real_gh)
-    debug_log "Found gh at: $GH_BIN"
+# Check if this is a read-only operation (we might not need token exchange for these)
+NEEDS_TOKEN_EXCHANGE=true
+case "$1" in
+    help|--help|-h|version|--version)
+        NEEDS_TOKEN_EXCHANGE=false
+        ;;
+    *)
+        # For subcommands, check if they're read-only
+        case "$1 $2" in
+            "auth status"|"repo view"|"pr view"|"issue view"|"pr list"|"issue list")
+                NEEDS_TOKEN_EXCHANGE=false
+                ;;
+        esac
+        ;;
+esac
 
-    # Detect if an AI tool is running
-    AI_TOOL=$(detect_ai_tool)
-    
-    if [ "$AI_TOOL" = "none" ]; then
-        # No AI detected, pass through to regular gh
-        debug_log "No AI detected, passing through to gh"
-        exec "$GH_BIN" "$@"
+if [ "$NEEDS_TOKEN_EXCHANGE" = "false" ]; then
+    debug_log "Read-only operation, skipping token exchange"
+    exec "$GH_BIN" "$@"
+fi
+
+# Get the user's GitHub token
+USER_TOKEN="${GH_TOKEN:-$GITHUB_TOKEN}"
+if [ -z "$USER_TOKEN" ]; then
+    # Try to get token from gh auth
+    USER_TOKEN=$("$GH_BIN" auth token 2>/dev/null || echo "")
+fi
+
+if [ -z "$USER_TOKEN" ]; then
+    debug_log "No GitHub token found, proceeding without bot attribution"
+    exec "$GH_BIN" "$@"
+fi
+
+# Try to get repository info
+if ! read -r owner repo < <(get_repo_info); then
+    debug_log "Could not determine repository, proceeding without bot attribution"
+    exec "$GH_BIN" "$@"
+fi
+
+# Check if the app is installed
+if ! check_app_installation "$owner" "$repo" "$USER_TOKEN"; then
+    if [ "$DEBUG" = "true" ]; then
+        echo "[WARNING] GitHub App '$APP_NAME' is not installed on $owner/$repo" >&2
+        echo "[WARNING] Actions will be attributed to you directly, not to a bot" >&2
+        echo "[WARNING] To enable bot attribution, install the app at: https://github.com/apps/$APP_NAME" >&2
     fi
+    exec "$GH_BIN" "$@"
+fi
 
-    info "AI detected: $AI_TOOL - checking for bot token exchange..."
+# Exchange the token
+BOT_TOKEN=$(exchange_token "$owner" "$repo" "$USER_TOKEN")
+if [ -z "$BOT_TOKEN" ]; then
+    debug_log "Failed to exchange token, proceeding with user token"
+    exec "$GH_BIN" "$@"
+fi
 
-    # Get the user's GitHub token
-    USER_TOKEN="${GH_TOKEN:-$GITHUB_TOKEN}"
-    if [ -z "$USER_TOKEN" ]; then
-        # Try to get token from gh auth
-        USER_TOKEN=$("$GH_BIN" auth token 2>/dev/null || echo "")
-    fi
+if [ "$DEBUG" = "true" ]; then
+    echo "[INFO] Successfully exchanged token - actions will be attributed to bot on behalf of user" >&2
+fi
 
-    if [ -z "$USER_TOKEN" ]; then
-        warn "No GitHub token found, proceeding without bot attribution"
-        exec "$GH_BIN" "$@"
-    fi
-
-    # Try to get repository info
-    if ! read -r owner repo < <(get_repo_info); then
-        debug_log "Could not determine repository, proceeding without bot attribution"
-        exec "$GH_BIN" "$@"
-    fi
-
-    # Check if the app is installed
-    if ! check_app_installation "$owner" "$repo" "$USER_TOKEN"; then
-        warn "GitHub App '$APP_NAME' is not installed on $owner/$repo"
-        warn "Actions will be attributed to you directly, not to a bot"
-        warn "To enable bot attribution, install the app at: https://github.com/apps/$APP_NAME"
-        exec "$GH_BIN" "$@"
-    fi
-
-    # Exchange the token
-    BOT_TOKEN=$(exchange_token "$owner" "$repo" "$USER_TOKEN")
-    if [ -z "$BOT_TOKEN" ]; then
-        warn "Failed to exchange token, proceeding with user token"
-        exec "$GH_BIN" "$@"
-    fi
-
-    info "Successfully exchanged token - actions will be attributed to bot on behalf of user"
-
-    # Execute gh with the bot token
-    GH_TOKEN="$BOT_TOKEN" exec "$GH_BIN" "$@"
-}
-
-# Run main function
-main "$@"
+# Execute gh with the bot token
+GH_TOKEN="$BOT_TOKEN" exec "$GH_BIN" "$@"
