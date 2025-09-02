@@ -249,8 +249,15 @@ Apache 2.0 - See LICENSE file for details
 
 ## 🔗 Related Projects
 
-- [ai-aligned-git](https://github.com/trieloff/ai-aligned-git) - The inspiration for this project, a git wrapper with the same philosophy
-- [as-a-bot](https://github.com/trieloff/as-a-bot) - The GitHub App token broker service that makes this possible
+### Core Components
+- [as-a-bot](https://github.com/trieloff/as-a-bot) - The GitHub App token broker service that powers AI attribution, running on Cloudflare Workers with secure token management
+- [ai-aligned-git](https://github.com/trieloff/ai-aligned-git) - The inspiration for this project, a Git wrapper that enforces safe AI commit practices and proper attribution
+
+### Developer Tools for AI Transparency
+- [vibe-coded-badge-action](https://github.com/trieloff/vibe-coded-badge-action) - GitHub Action that analyzes repository history to show what percentage of commits were made by AI tools
+- [gh-workflow-peek](https://github.com/trieloff/gh-workflow-peek) - GitHub CLI extension for intelligently filtering and highlighting errors in GitHub Actions logs by severity
+
+### External Tools
 - [GitHub CLI](https://cli.github.com/) - The official GitHub command-line tool
 
 ## 🙏 Acknowledgments
