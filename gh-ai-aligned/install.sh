@@ -22,21 +22,21 @@ fi
 
 # Function to print colored output
 print_color() {
-    echo -e "${1}${2}${NC}"
+    printf "%s%s%s\n" "$1" "$2" "$NC"
 }
 
 # Installation directory for gh extensions
 GH_EXT_DIR="${HOME}/.local/share/gh/extensions"
 
-# Extension name
-EXT_NAME="gh-ai-aligned"
+# Extension name (directory name determines command: "gh ai")
+EXT_NAME="gh-ai"
 EXT_DIR="${GH_EXT_DIR}/${EXT_NAME}"
 
 print_color "$BLUE" "Installing gh-ai-aligned extension..."
 echo ""
 
 # Check if gh CLI is installed
-if ! command -v gh &> /dev/null; then
+if ! command -v gh > /dev/null 2>&1; then
     print_color "$RED" "Error: GitHub CLI (gh) is not installed."
     echo "Please install GitHub CLI first:"
     echo "  https://cli.github.com/"
@@ -69,8 +69,7 @@ else
     print_color "$GREEN" "✓ Extension script downloaded"
 fi
 
-# Create a symlink for 'gh ai' command
-ln -sf "$EXT_DIR/gh-ai" "$EXT_DIR/gh-ai"
+# Extension is ready (gh-ai script in place)
 
 # Verify installation
 if gh extension list 2>/dev/null | grep -q "$EXT_NAME"; then

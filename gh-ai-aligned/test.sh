@@ -9,14 +9,12 @@ set -e
 if [ -t 1 ]; then
     RED='\033[0;31m'
     GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
     BLUE='\033[0;34m'
     CYAN='\033[0;36m'
     NC='\033[0m' # No Color
 else
     RED=''
     GREEN=''
-    YELLOW=''
     BLUE=''
     CYAN=''
     NC=''
@@ -82,9 +80,11 @@ fi
 
 # Test 4: Test AI detection in debug mode
 print_test "Testing AI detection (simulating Claude)..."
-CLAUDE_CODE=1 GH_AI_DEBUG=true "$GH_AI_SCRIPT" auth status 2>&1 | grep -q "Detected Claude" && \
-    print_pass "AI detection works (Claude)" || \
+if CLAUDE_CODE=1 GH_AI_DEBUG=true "$GH_AI_SCRIPT" auth status 2>&1 | grep -q "Detected Claude"; then
+    print_pass "AI detection works (Claude)"
+else
     print_fail "AI detection failed"
+fi
 
 # Test 5: Test AI detection for different tools
 print_test "Testing AI detection for multiple tools..."
