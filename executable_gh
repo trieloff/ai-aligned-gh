@@ -276,13 +276,15 @@ poll_for_token_background() {
     local interval=${3:-5}
     local max_time=${4:-300}  # Max 5 minutes by default
     
-    local start_time=$(date +%s)
+    local start_time
+    start_time=$(date +%s)
     
     while true; do
-        local current_time=$(date +%s)
+        local current_time
+        current_time=$(date +%s)
         local elapsed=$((current_time - start_time))
         
-        if [ $elapsed -gt $max_time ]; then
+        if [ $elapsed -gt "$max_time" ]; then
             echo "expired" > "${state_file}.status"
             break
         fi
@@ -335,10 +337,9 @@ get_cached_token() {
         cached_token=$(cat "$cache_file")
         
         # Verify token is still valid and check its type
-        local test_response rate_limit
-        test_response=$(GH_TOKEN="$cached_token" "$GH_BIN" api user 2>/dev/null)
+        local rate_limit
         
-        if [ $? -eq 0 ]; then
+        if GH_TOKEN="$cached_token" "$GH_BIN" api user >/dev/null 2>&1; then
             # Check if this is a user-to-server token (ghu_ prefix)
             if [[ "$cached_token" == ghu_* ]]; then
                 debug_log "Using valid user-to-server token (ghu_ prefix)"
