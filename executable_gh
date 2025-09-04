@@ -160,30 +160,142 @@ find_real_gh() {
     exit 1
 }
 
+# Function to parse --repo flag from command arguments
+parse_repo_flag() {
+    local args=("$@")
+    local i=0
+    
+    while [ $i -lt ${#args[@]} ]; do
+        case "${args[i]}" in
+            --repo)
+                if [ $((i + 1)) -lt ${#args[@]} ]; then
+                    echo "${args[$((i + 1))]}"
+                    return 0
+                fi
+                ;;
+            --repo=*)
+                echo "${args[i]#--repo=}"
+                return 0
+                ;;
+            -R)
+                if [ $((i + 1)) -lt ${#args[@]} ]; then
+                    echo "${args[$((i + 1))]}"
+                    return 0
+                fi
+                ;;
+        esac
+        i=$((i + 1))
+    done
+    
+    return 1
+}
+
+# Function to check if operation is safe (read-only)
+is_safe_operation() {
+    local cmd="$1"
+    local subcommand="$2"
+    
+    case "$cmd" in
+        help|--help|-h|version|--version)
+            return 0
+            ;;
+        auth)
+            case "$subcommand" in
+                status|login|logout|refresh|setup-git|token)
+                    return 0
+                    ;;
+            esac
+            ;;
+        repo)
+            case "$subcommand" in
+                view|list|clone|fork)
+                    return 0
+                    ;;
+            esac
+            ;;
+        pr)
+            case "$subcommand" in
+                view|list|diff|checks)
+                    return 0
+                    ;;
+            esac
+            ;;
+        issue)
+            case "$subcommand" in
+                view|list)
+                    return 0
+                    ;;
+            esac
+            ;;
+        release)
+            case "$subcommand" in
+                view|list|download)
+                    return 0
+                    ;;
+            esac
+            ;;
+        run)
+            case "$subcommand" in
+                view|list|watch)
+                    return 0
+                    ;;
+            esac
+            ;;
+        workflow)
+            case "$subcommand" in
+                view|list)
+                    return 0
+                    ;;
+            esac
+            ;;
+        api)
+            # API calls with GET method only
+            if [[ "$*" =~ --method[[:space:]]+GET|^GET[[:space:]] ]] || [[ ! "$*" =~ --method ]]; then
+                # Default API calls are GET, but be conservative
+                case "$subcommand" in
+                    user|users/*|rate_limit|repos/*/|orgs/*)
+                        return 0
+                        ;;
+                esac
+            fi
+            ;;
+    esac
+    
+    return 1
+}
+
 # Function to get current repository info
 get_repo_info() {
-    # Try to get repo info from current directory
-    local origin_url
-    origin_url=$(git config --get remote.origin.url 2>/dev/null || echo "")
+    local repo_spec="$1"  # Optional: explicit repo specification
+    local name_with_owner
     
-    if [ -z "$origin_url" ]; then
-        debug_log "No git remote origin found"
-        return 1
+    if [ -n "$repo_spec" ]; then
+        # Use explicit repo specification
+        debug_log "Using explicit repo specification: $repo_spec"
+        name_with_owner="$repo_spec"
+    else
+        # Try to get repo info from current directory using gh
+        debug_log "Attempting to get repo info from current directory"
+        name_with_owner=$("$GH_BIN" repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null)
+        
+        if [ -z "$name_with_owner" ] || [ "$name_with_owner" = "null" ]; then
+            debug_log "No repository found in current directory"
+            return 1
+        fi
     fi
-
-    debug_log "Found origin URL: $origin_url"
-
-    # Parse GitHub owner/repo from various URL formats
-    if [[ "$origin_url" =~ github\.com[:/]([^/]+)/([^/]+)(\.git)?$ ]]; then
-        owner="${BASH_REMATCH[1]}"
-        repo="${BASH_REMATCH[2]}"
-        repo="${repo%.git}"  # Remove .git suffix if present
+    
+    debug_log "Found repository: $name_with_owner"
+    
+    # Split owner/repo
+    if [[ "$name_with_owner" =~ ^([^/]+)/(.+)$ ]]; then
+        local owner="${BASH_REMATCH[1]}"
+        local repo="${BASH_REMATCH[2]}"
         echo "$owner" "$repo"
         debug_log "Parsed owner: $owner, repo: $repo"
         return 0
     fi
-
-    debug_log "Could not parse GitHub owner/repo from URL"
+    
+    debug_log "Could not parse owner/repo from: $name_with_owner"
     return 1
 }
 
@@ -284,7 +396,7 @@ poll_for_token_background() {
         current_time=$(date +%s)
         local elapsed=$((current_time - start_time))
         
-        if [ $elapsed -gt "$max_time" ]; then
+        if [ "$elapsed" -gt "$max_time" ]; then
             echo "expired" > "${state_file}.status"
             break
         fi
@@ -495,36 +607,42 @@ if [ "$AI_TOOL" = "none" ]; then
     exec "$GH_BIN" "$@"
 fi
 
-# AI detected - show info if in debug mode or if it's a write operation
+# AI detected - show info if in debug mode
 if [ "$DEBUG" = "true" ]; then
     echo "[INFO] AI detected: $AI_TOOL - checking for bot token exchange..." >&2
 fi
 
-# Check if this is a read-only operation (we might not need token exchange for these)
-NEEDS_TOKEN_EXCHANGE=true
-case "$1" in
-    help|--help|-h|version|--version)
-        NEEDS_TOKEN_EXCHANGE=false
-        ;;
-    *)
-        # For subcommands, check if they're read-only
-        case "$1 $2" in
-            "auth status"|"repo view"|"pr view"|"issue view"|"pr list"|"issue list")
-                NEEDS_TOKEN_EXCHANGE=false
-                ;;
-        esac
-        ;;
-esac
-
-if [ "$NEEDS_TOKEN_EXCHANGE" = "false" ]; then
-    debug_log "Read-only operation, skipping token exchange"
+# Check if this is a safe operation that doesn't need token exchange
+if is_safe_operation "$@"; then
+    debug_log "Safe operation, skipping token exchange"
     exec "$GH_BIN" "$@"
 fi
 
-# Try to get repository info
-if ! read -r owner repo < <(get_repo_info); then
-    debug_log "Could not determine repository, proceeding without bot attribution"
-    exec "$GH_BIN" "$@"
+# Parse --repo flag if present
+REPO_SPEC=""
+if REPO_SPEC=$(parse_repo_flag "$@"); then
+    debug_log "Found --repo flag: $REPO_SPEC"
+fi
+
+# Try to get repository info (either from --repo flag or current directory)
+if ! read -r owner repo < <(get_repo_info "$REPO_SPEC"); then
+    # For unsafe operations, we MUST have repository info to proceed with AI attribution
+    echo "" >&2
+    echo "=================================================================" >&2
+    echo "  Repository Required for AI-Aligned Operations" >&2
+    echo "=================================================================" >&2
+    echo "" >&2
+    echo "  AI tool detected: $AI_TOOL" >&2
+    echo "" >&2
+    echo "  This operation requires repository context for proper AI attribution." >&2
+    echo "" >&2
+    echo "  Please either:" >&2
+    echo "  1. Run this command from within a GitHub repository directory, or" >&2
+    echo "  2. Use the --repo flag to specify the repository: --repo owner/repo" >&2
+    echo "" >&2
+    echo "  Refusing to proceed with user token to prevent misattribution." >&2
+    echo "" >&2
+    exit 1
 fi
 
 # Check if this repo should be ignored
@@ -551,5 +669,60 @@ if [ "$DEBUG" = "true" ]; then
     fi
 fi
 
-# Execute gh with the user-to-server token
-GH_TOKEN="$BOT_TOKEN" exec "$GH_BIN" "$@"
+# Execute gh with the user-to-server token and handle GitHub App installation errors
+execute_gh_with_error_handling() {
+    local stderr_file
+    local exit_code
+    
+    # Create a temporary file for stderr
+    stderr_file=$(mktemp)
+    
+    # Execute gh with stderr redirected to temp file
+    GH_TOKEN="$BOT_TOKEN" "$GH_BIN" "$@" 2>"$stderr_file"
+    exit_code=$?
+    
+    # If command failed, check for specific GitHub App errors
+    if [ $exit_code -ne 0 ]; then
+        local stderr_content
+        stderr_content=$(cat "$stderr_file")
+        
+        debug_log "gh command failed with exit code $exit_code"
+        debug_log "stderr: $stderr_content"
+        
+        # Check for GitHub App not installed error
+        if echo "$stderr_content" | grep -qi "Resource not accessible by integration"; then
+            echo "" >&2
+            echo "=================================================================" >&2
+            echo "  GitHub App Installation Required" >&2
+            echo "=================================================================" >&2
+            echo "" >&2
+            echo "  The 'as-a-bot' GitHub App is not installed in this repository." >&2
+            echo "" >&2
+            echo "  To enable AI-aligned operations, please:" >&2
+            echo "" >&2
+            echo "  1. Visit: https://github.com/apps/as-a-bot" >&2
+            echo "  2. Click 'Install' or 'Configure'" >&2
+            echo "  3. Select the repository: $owner/$repo" >&2
+            echo "  4. Grant the required permissions" >&2
+            echo "" >&2
+            echo "  After installation, try your command again." >&2
+            echo "" >&2
+            echo "  Original error:" >&2
+            echo "  $stderr_content" >&2
+            echo "" >&2
+            rm -f "$stderr_file"
+            exit 1
+        fi
+        
+        # For other errors, just show the original error and exit
+        cat "$stderr_file" >&2
+        rm -f "$stderr_file"
+        exit $exit_code
+    fi
+    
+    # Clean up temp file on success
+    rm -f "$stderr_file"
+    exit 0
+}
+
+execute_gh_with_error_handling "$@"
