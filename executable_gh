@@ -363,24 +363,6 @@ start_device_flow() {
     return 0
 }
 
-# Function to start web flow authentication
-start_web_flow() {
-    debug_log "Starting web flow authentication"
-    
-    local response
-    response=$(curl -sS -X POST "${BROKER_URL}/auth/start" \
-        -H "Content-Type: application/json" \
-        -d "{}" 2>/dev/null)
-    
-    if [ -z "$response" ]; then
-        debug_log "Failed to start web flow"
-        return 1
-    fi
-    
-    echo "$response"
-    return 0
-}
-
 # Function to poll for device flow token in background
 poll_for_token_background() {
     local device_code=$1
