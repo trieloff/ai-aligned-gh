@@ -579,8 +579,13 @@ get_cached_token() {
                     echo "" >&2
                     echo "  Please complete the authorization:" >&2
                     echo "" >&2
+                    echo "  For humans:" >&2
                     echo "  1. Visit: $verification_uri" >&2
                     echo "  2. Enter code: $user_code" >&2
+                    echo "" >&2
+                    echo "  For AI agents - run these commands:" >&2
+                    echo "  echo '$user_code' | pbcopy" >&2
+                    echo "  open '$verification_uri'" >&2
                     echo "" >&2
                     echo "  Authentication will complete in the background." >&2
                     echo "  Try your command again in a few seconds." >&2
@@ -646,8 +651,13 @@ get_cached_token() {
     echo "" >&2
     echo "  Please authorize the '$APP_NAME' GitHub App:" >&2
     echo "" >&2
+    echo "  For humans:" >&2
     echo "  1. Visit: $verification_uri" >&2
     echo "  2. Enter code: $user_code" >&2
+    echo "" >&2
+    echo "  For AI agents - run these commands:" >&2
+    echo "  echo '$user_code' | pbcopy" >&2
+    echo "  open '$verification_uri'" >&2
     echo "" >&2
     echo "  Authentication will complete in the background." >&2
     echo "  Try your command again after authorizing." >&2
