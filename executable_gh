@@ -32,97 +32,165 @@ process_contains() {
     fi
 }
 
-# Function to detect which AI tool is running
-detect_ai_tool() {
+# Generic function to check environment variables for AI detection
+check_env_vars() {
+    # Phase 1: Environment variable detection
+    # Returns space-separated list of detected AI tools
+    local detected=""
+
+    # Claude Code detection
+    if [ -n "$CLAUDECODE" ] && [ "$CLAUDE_CODE_ENTRYPOINT" = "cli" ]; then
+        # Additional confidence check: look for Claude processes anywhere in the system
+        if pgrep -f "claude" >/dev/null 2>&1; then
+            detected="$detected claude"
+            debug_log "Detected Claude via environment variable with process confirmation"
+        fi
+    fi
+
+    # Gemini detection
+    if [ -n "$GEMINI_CLI" ]; then
+        detected="$detected gemini"
+        debug_log "Detected Gemini via environment variable"
+    fi
+
+    # Qwen detection
+    if [ -n "$QWEN_CODE" ]; then
+        detected="$detected qwen"
+        debug_log "Detected Qwen via environment variable"
+    fi
+
+    # Zed detection (environment variables are always present in Zed terminals)
+    # We'll rely more on process tree for Zed
+    if [ "$TERM_PROGRAM" = "zed" ] || [ "$ZED_TERM" = "true" ]; then
+        detected="$detected zed"
+        debug_log "Detected Zed via environment variable"
+    fi
+
+    echo "$detected"
+}
+
+# Generic function to walk process tree and detect AI tools
+check_ps_tree() {
+    # Phase 2: Process tree detection
+    # Returns space-separated list of detected AI tools
+    local detected=""
     local current_pid=$$
     local max_depth=10
     local depth=0
 
-    debug_log "Starting AI detection from PID $current_pid"
+    debug_log "Starting process tree detection from PID $current_pid"
 
-    # Check environment variables first
-    if [ -n "$GEMINI_CLI" ]; then
-        debug_log "Detected Gemini via environment variable"
-        echo "gemini"
-        return
-    fi
-    if [ -n "$QWEN_CODE" ]; then
-        debug_log "Detected Qwen via environment variable"
-        echo "qwen"
-        return
-    fi
-    if [ -n "$CLAUDE_CODE" ] || [ -n "$ANTHROPIC_SHELL" ]; then
-        debug_log "Detected Claude via environment variable"
-        echo "claude"
-        return
-    fi
-    if [ -n "$CURSOR_AI" ]; then
-        debug_log "Detected Cursor via environment variable"
-        echo "cursor"
-        return
-    fi
-    if [ -n "$ZED_AI" ]; then
-        debug_log "Detected Zed via environment variable"
-        echo "zed"
-        return
-    fi
-    if [ -n "$OPENCODE_AI" ]; then
-        debug_log "Detected OpenCode via environment variable"
-        echo "opencode"
-        return
-    fi
-
-    # Walk up the process tree
     while [ $depth -lt $max_depth ]; do
         # Get parent PID
         if [[ "$OSTYPE" == "darwin"* ]]; then
-            # macOS
             current_pid=$(ps -p "$current_pid" -o ppid= 2>/dev/null | tr -d ' ')
         else
-            # Linux
             current_pid=$(ps -p "$current_pid" -o ppid= 2>/dev/null | tr -d ' ')
         fi
 
         # Check if we've reached the top
         if [ -z "$current_pid" ] || [ "$current_pid" -eq 1 ] || [ "$current_pid" -eq 0 ]; then
-            debug_log "Reached top of process tree without finding AI"
+            debug_log "Reached top of process tree at depth $depth"
             break
+        fi
+
+        # Check for AI tool patterns
+        if [ -n "$GEMINI_CLI" ]; then
+            echo "gemini"
+            return
+        fi
+        if [ -n "$QWEN_CODE" ]; then
+            echo "qwen"
+            return
         fi
 
         debug_log "Checking PID $current_pid at depth $depth"
 
-        # Check for AI tool patterns in process names
         if process_contains "$current_pid" "claude"; then
-            debug_log "Detected Claude in process tree"
-            echo "claude"
-            return
-        elif process_contains "$current_pid" "gemini"; then
-            debug_log "Detected Gemini in process tree"
-            echo "gemini"
-            return
-        elif process_contains "$current_pid" "qwen"; then
-            debug_log "Detected Qwen in process tree"
-            echo "qwen"
-            return
-        elif process_contains "$current_pid" "zed"; then
-            debug_log "Detected Zed in process tree"
-            echo "zed"
-            return
-        elif process_contains "$current_pid" "opencode"; then
-            debug_log "Detected OpenCode in process tree"
-            echo "opencode"
-            return
-        elif process_contains "$current_pid" "cursor"; then
-            debug_log "Detected Cursor in process tree"
-            echo "cursor"
-            return
+            detected="$detected claude"
+            debug_log "Detected Claude in process tree at depth $depth"
+        fi
+        if process_contains "$current_pid" "gemini"; then
+            detected="$detected gemini"
+            debug_log "Detected Gemini in process tree at depth $depth"
+        fi
+        if process_contains "$current_pid" "qwen"; then
+            detected="$detected qwen"
+            debug_log "Detected Qwen in process tree at depth $depth"
+        fi
+        if process_contains "$current_pid" "zed"; then
+            detected="$detected zed"
+            debug_log "Detected Zed in process tree at depth $depth"
+            # Special case: When we find Zed, also check for Claude processes that are siblings
+            # (children of the same Zed process) to handle nested AI scenarios
+            local zed_children
+            zed_children=$(pgrep -P "$current_pid" 2>/dev/null)
+            for child_pid in $zed_children; do
+                if process_contains "$child_pid" "claude"; then
+                    detected="$detected claude"
+                    debug_log "Detected nested Claude under Zed at depth $depth"
+                    break
+                fi
+            done
+        fi
+        if process_contains "$current_pid" "opencode"; then
+            detected="$detected opencode"
+            debug_log "Detected OpenCode in process tree at depth $depth"
+        fi
+        if process_contains "$current_pid" "cursor"; then
+            detected="$detected cursor"
+            debug_log "Detected Cursor in process tree at depth $depth"
         fi
 
         depth=$((depth + 1))
     done
 
-    debug_log "No AI tool detected"
-    echo "none"
+    echo "$detected"
+}
+
+# Main AI detection function with proper two-phase approach
+detect_ai_tool() {
+    debug_log "Starting AI detection"
+    
+    # Phase 1: Environment variable detection
+    local env_detected
+    env_detected=$(check_env_vars)
+
+    # Phase 2: Process tree detection
+    local ps_detected
+    ps_detected=$(check_ps_tree)
+
+    # Combine results and apply priority order
+    local all_detected="$env_detected $ps_detected"
+
+    debug_log "Environment detected: '$env_detected'"
+    debug_log "Process tree detected: '$ps_detected'"
+    debug_log "Combined detected: '$all_detected'"
+
+    # Priority order: Claude > Gemini > Qwen > OpenCode > Cursor > Zed
+    # Zed is last because it often hosts other AI tools
+    if [[ "$all_detected" =~ "claude" ]]; then
+        debug_log "Final result: claude"
+        echo "claude"
+    elif [[ "$all_detected" =~ "gemini" ]]; then
+        debug_log "Final result: gemini"
+        echo "gemini"
+    elif [[ "$all_detected" =~ "qwen" ]]; then
+        debug_log "Final result: qwen"
+        echo "qwen"
+    elif [[ "$all_detected" =~ "opencode" ]]; then
+        debug_log "Final result: opencode"
+        echo "opencode"
+    elif [[ "$all_detected" =~ "cursor" ]]; then
+        debug_log "Final result: cursor"
+        echo "cursor"
+    elif [[ "$all_detected" =~ "zed" ]]; then
+        debug_log "Final result: zed"
+        echo "zed"
+    else
+        debug_log "Final result: none"
+        echo "none"
+    fi
 }
 
 # Function to find the real gh executable
