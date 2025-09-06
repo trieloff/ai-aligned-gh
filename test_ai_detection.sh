@@ -22,6 +22,8 @@ echo "TERM_PROGRAM: '$TERM_PROGRAM'"
 echo "ZED_TERM: '$ZED_TERM'"
 echo "GEMINI_CLI: '$GEMINI_CLI'"
 echo "QWEN_CODE: '$QWEN_CODE'"
+echo "CURSOR_AI: '$CURSOR_AI'"
+echo "OPENCODE_AI: '$OPENCODE_AI'"
 
 echo -e "\n=== Environment Detection ==="
 env_result=$(check_env_vars)

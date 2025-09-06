@@ -59,6 +59,18 @@ check_env_vars() {
         debug_log "Detected Qwen via environment variable"
     fi
 
+    # Cursor detection
+    if [ -n "$CURSOR_AI" ]; then
+        detected="$detected cursor"
+        debug_log "Detected Cursor via environment variable"
+    fi
+
+    # OpenCode detection
+    if [ -n "$OPENCODE_AI" ]; then
+        detected="$detected opencode"
+        debug_log "Detected OpenCode via environment variable"
+    fi
+
     # Zed detection (environment variables are always present in Zed terminals)
     # We'll rely more on process tree for Zed
     if [ "$TERM_PROGRAM" = "zed" ] || [ "$ZED_TERM" = "true" ]; then
