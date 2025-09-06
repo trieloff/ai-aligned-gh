@@ -3,7 +3,7 @@
 # Test AI detection functions from executable_gh
 
 # Set debug mode
-DEBUG=true
+export DEBUG=true
 
 # Extract just the functions we need from executable_gh
 eval "$(sed -n '/^debug_log()/,/^}/p' executable_gh)"
