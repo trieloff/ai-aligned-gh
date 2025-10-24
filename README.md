@@ -133,6 +133,7 @@ The wrapper automatically detects:
 | Qwen Code (Alibaba) | Process name + env | `QWEN_CODE` |
 | Zed AI | Process name + env | `ZED_AI` |
 | OpenCode | Process name + env | `OPENCODE_AI` |
+| Codex CLI (OpenAI) | Process name + env | `CODEX_CLI` |
 
 ## ⚙️ Configuration
 
