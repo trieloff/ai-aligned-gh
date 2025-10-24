@@ -39,7 +39,7 @@ check_env_vars() {
     local detected=""
 
     # Claude Code detection
-    if [ -n "$CLAUDECODE" ] && [ "$CLAUDE_CODE_ENTRYPOINT" = "cli" ]; then
+    if [ -n "$CLAUDECODE" ] && { [ "$CLAUDE_CODE_ENTRYPOINT" = "cli" ] || [ "$CLAUDE_CODE_ENTRYPOINT" = "sdk-ts" ]; }; then
         # Additional confidence check: look for Claude processes anywhere in the system
         if pgrep -f "claude" >/dev/null 2>&1; then
             detected="$detected claude"
@@ -76,6 +76,24 @@ check_env_vars() {
     if [ "$TERM_PROGRAM" = "zed" ] || [ "$ZED_TERM" = "true" ]; then
         detected="$detected zed"
         debug_log "Detected Zed via environment variable"
+    fi
+
+    # Copilot detection
+    if [ "$GITHUB_COPILOT_CLI_MODE" = "true" ]; then
+        detected="$detected copilot"
+        debug_log "Detected Copilot via environment variable"
+    fi
+
+    # Droid detection (Factory AI)
+    if [ -n "$DROID_CLI" ]; then
+        detected="$detected droid"
+        debug_log "Detected Droid via environment variable"
+    fi
+
+    # Amp detection (Sourcegraph)
+    if [ "$AGENT" = "amp" ] || [ -n "$AMP_HOME" ]; then
+        detected="$detected amp"
+        debug_log "Detected Amp via environment variable"
     fi
 
     echo "$detected"
@@ -153,6 +171,20 @@ check_ps_tree() {
             detected="$detected cursor"
             debug_log "Detected Cursor in process tree at depth $depth"
         fi
+        # Droid detection - use word boundary to avoid matching android-studio, etc.
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            if ps -p "$current_pid" -o comm= 2>/dev/null | grep -qiw "droid" || \
+               ps -p "$current_pid" -o command= 2>/dev/null | grep -qiw "droid"; then
+                detected="$detected droid"
+                debug_log "Detected Droid in process tree at depth $depth"
+            fi
+        else
+            if ps -p "$current_pid" -o comm= 2>/dev/null | grep -qiw "droid" || \
+               ps -p "$current_pid" -o cmd= 2>/dev/null | grep -qiw "droid"; then
+                detected="$detected droid"
+                debug_log "Detected Droid in process tree at depth $depth"
+            fi
+        fi
 
         depth=$((depth + 1))
     done
@@ -179,9 +211,12 @@ detect_ai_tool() {
     debug_log "Process tree detected: '$ps_detected'"
     debug_log "Combined detected: '$all_detected'"
 
-    # Priority order: Claude > Gemini > Qwen > OpenCode > Cursor > Zed
+    # Priority order: Amp > Claude > Gemini > Qwen > Droid > OpenCode > Cursor > Copilot > Zed
     # Zed is last because it often hosts other AI tools
-    if [[ "$all_detected" =~ "claude" ]]; then
+    if [[ "$all_detected" =~ "amp" ]]; then
+        debug_log "Final result: amp"
+        echo "amp"
+    elif [[ "$all_detected" =~ "claude" ]]; then
         debug_log "Final result: claude"
         echo "claude"
     elif [[ "$all_detected" =~ "gemini" ]]; then
@@ -190,12 +225,18 @@ detect_ai_tool() {
     elif [[ "$all_detected" =~ "qwen" ]]; then
         debug_log "Final result: qwen"
         echo "qwen"
+    elif [[ "$all_detected" =~ "droid" ]]; then
+        debug_log "Final result: droid"
+        echo "droid"
     elif [[ "$all_detected" =~ "opencode" ]]; then
         debug_log "Final result: opencode"
         echo "opencode"
     elif [[ "$all_detected" =~ "cursor" ]]; then
         debug_log "Final result: cursor"
         echo "cursor"
+    elif [[ "$all_detected" =~ "copilot" ]]; then
+        debug_log "Final result: copilot"
+        echo "copilot"
     elif [[ "$all_detected" =~ "zed" ]]; then
         debug_log "Final result: zed"
         echo "zed"
