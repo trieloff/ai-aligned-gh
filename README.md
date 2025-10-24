@@ -347,6 +347,7 @@ Apache 2.0 - See LICENSE file for details
 ### Developer Tools for AI Transparency
 - [vibe-coded-badge-action](https://github.com/trieloff/vibe-coded-badge-action) - GitHub Action that analyzes repository history to show what percentage of commits were made by AI tools
 - [gh-workflow-peek](https://github.com/trieloff/gh-workflow-peek) - GitHub CLI extension for intelligently filtering and highlighting errors in GitHub Actions logs by severity
+- [yolo](https://github.com/trieloff/yolo) - Portable AI agent launcher that adds appropriate bypass flags and can run in isolated git worktrees
 
 ### External Tools
 - [GitHub CLI](https://cli.github.com/) - The official GitHub command-line tool
