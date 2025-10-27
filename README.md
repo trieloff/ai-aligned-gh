@@ -341,17 +341,14 @@ Apache 2.0 - See LICENSE file for details
 
 ## 🔗 Related Projects
 
-### Core Components
-- [as-a-bot](https://github.com/trieloff/as-a-bot) - The GitHub App token broker service that powers AI attribution, running on Cloudflare Workers with secure token management
-- [ai-aligned-git](https://github.com/trieloff/ai-aligned-git) - The inspiration for this project, a Git wrapper that enforces safe AI commit practices and proper attribution
+Part of the **[AI Ecoverse](https://github.com/trieloff/ai-ecoverse)** - a comprehensive ecosystem of tools for AI-assisted development:
 
-### Developer Tools for AI Transparency
-- [vibe-coded-badge-action](https://github.com/trieloff/vibe-coded-badge-action) - GitHub Action that analyzes repository history to show what percentage of commits were made by AI tools
-- [gh-workflow-peek](https://github.com/trieloff/gh-workflow-peek) - GitHub CLI extension for intelligently filtering and highlighting errors in GitHub Actions logs by severity
-- [yolo](https://github.com/trieloff/yolo) - Portable AI agent launcher that adds appropriate bypass flags and can run in isolated git worktrees
-
-### External Tools
-- [GitHub CLI](https://cli.github.com/) - The official GitHub command-line tool
+- [yolo](https://github.com/trieloff/yolo) - AI CLI launcher with worktree isolation
+- [ai-aligned-git](https://github.com/trieloff/ai-aligned-git) - Git wrapper for safe AI commit practices
+- [vibe-coded-badge-action](https://github.com/trieloff/vibe-coded-badge-action) - Badge showing AI-generated code percentage
+- [gh-workflow-peek](https://github.com/trieloff/gh-workflow-peek) - Smarter GitHub Actions log filtering
+- [upskill](https://github.com/trieloff/upskill) - Install Claude/Agent skills from other repositories
+- [as-a-bot](https://github.com/trieloff/as-a-bot) - GitHub App token broker for proper AI attribution
 
 ## 🙏 Acknowledgments
 
