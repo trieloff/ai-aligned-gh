@@ -136,16 +136,6 @@ check_ps_tree() {
             break
         fi
 
-        # Check for AI tool patterns
-        if [ -n "$GEMINI_CLI" ]; then
-            echo "gemini"
-            return
-        fi
-        if [ -n "$QWEN_CODE" ]; then
-            echo "qwen"
-            return
-        fi
-
         debug_log "Checking PID $current_pid at depth $depth"
 
         if process_contains "$current_pid" "claude"; then
