@@ -119,6 +119,7 @@ Force AI detection for testing:
 CLAUDE_CODE=1 gh issue list
 CURSOR_AI=1 gh pr view 123
 GEMINI_CLI=1 gh repo clone user/repo
+KIMI_CLI=1 gh pr create --title "Test" --body "Testing Kimi detection"
 ```
 
 ## 🤖 Supported AI Tools
@@ -134,6 +135,7 @@ The wrapper automatically detects:
 | Zed AI | Process name + env | `ZED_AI` |
 | OpenCode | Process name + env | `OPENCODE_AI` |
 | Codex CLI (OpenAI) | Process name + env | `CODEX_CLI` |
+| Kimi CLI | Process name + env | `KIMI_CLI` |
 
 ## ⚙️ Configuration
 

@@ -77,7 +77,7 @@ fi
 
 # Test 4: Test AI detection
 print_test "Testing AI detection..."
-for tool in CLAUDE_CODE CURSOR_AI GEMINI_CLI QWEN_CODE ZED_AI OPENCODE_AI CODEX_CLI; do
+for tool in CLAUDE_CODE CURSOR_AI GEMINI_CLI QWEN_CODE ZED_AI OPENCODE_AI CODEX_CLI KIMI_CLI; do
     tool_name=$(echo "$tool" | cut -d'_' -f1 | tr '[:upper:]' '[:lower:]')
     
     # Run with debug to check detection

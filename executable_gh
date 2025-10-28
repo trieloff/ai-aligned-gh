@@ -102,6 +102,12 @@ check_env_vars() {
         debug_log "Detected Amp via environment variable"
     fi
 
+    # Kimi CLI detection
+    if [ -n "$KIMI_CLI" ]; then
+        detected="$detected kimi"
+        debug_log "Detected Kimi CLI via environment variable"
+    fi
+
     echo "$detected"
 }
 
@@ -181,6 +187,10 @@ check_ps_tree() {
             detected="$detected cursor"
             debug_log "Detected Cursor in process tree at depth $depth"
         fi
+        if process_contains "$current_pid" "kimi"; then
+            detected="$detected kimi"
+            debug_log "Detected Kimi CLI in process tree at depth $depth"
+        fi
         # Droid detection - use word boundary to avoid matching android-studio, etc.
         if [[ "$OSTYPE" == "darwin"* ]]; then
             if ps -p "$current_pid" -o comm= 2>/dev/null | grep -qiw "droid" || \
@@ -221,7 +231,7 @@ detect_ai_tool() {
     debug_log "Process tree detected: '$ps_detected'"
     debug_log "Combined detected: '$all_detected'"
 
-    # Priority order: Amp > Codex > Claude > Gemini > Qwen > Droid > OpenCode > Cursor > Copilot > Zed
+    # Priority order: Amp > Codex > Claude > Gemini > Qwen > Droid > OpenCode > Cursor > Kimi > Copilot > Zed
     # Zed is last because it often hosts other AI tools
     if [[ "$all_detected" =~ "amp" ]]; then
         debug_log "Final result: amp"
@@ -247,6 +257,9 @@ detect_ai_tool() {
     elif [[ "$all_detected" =~ "cursor" ]]; then
         debug_log "Final result: cursor"
         echo "cursor"
+    elif [[ "$all_detected" =~ "kimi" ]]; then
+        debug_log "Final result: kimi"
+        echo "kimi"
     elif [[ "$all_detected" =~ "copilot" ]]; then
         debug_log "Final result: copilot"
         echo "copilot"
