@@ -116,6 +116,7 @@ Force AI detection for testing:
 
 ```bash
 # Simulate different AI environments
+OR_APP_NAME=Aider gh issue list
 CLAUDE_CODE=1 gh issue list
 CURSOR_AI=1 gh pr view 123
 GEMINI_CLI=1 gh repo clone user/repo
@@ -128,14 +129,18 @@ The wrapper automatically detects:
 
 | AI Tool | Detection Method | Environment Variable |
 |---------|------------------|---------------------|
+| [Aider](https://aider.chat/) | Process name + env | `OR_APP_NAME=Aider` |
+| Amp (Sourcegraph) | Process name + env | `AGENT=amp`, `AMP_HOME` |
 | Claude (Anthropic) | Process name + env | `CLAUDE_CODE`, `ANTHROPIC_SHELL` |
+| Codex CLI (OpenAI) | Process name + env | `CODEX_CLI` |
 | Cursor | Process name + env | `CURSOR_AI` |
+| Droid (Factory AI) | Process name + env | `DROID_CLI` |
 | Gemini (Google) | Process name + env | `GEMINI_CLI` |
+| GitHub Copilot CLI | Process name + env | `GITHUB_COPILOT_CLI_MODE=true` |
+| Kimi CLI | Process name + env | `KIMI_CLI` |
+| OpenCode | Process name + env | `OPENCODE_AI` |
 | Qwen Code (Alibaba) | Process name + env | `QWEN_CODE` |
 | Zed AI | Process name + env | `ZED_AI` |
-| OpenCode | Process name + env | `OPENCODE_AI` |
-| Codex CLI (OpenAI) | Process name + env | `CODEX_CLI` |
-| Kimi CLI | Process name + env | `KIMI_CLI` |
 
 ## ⚙️ Configuration
 

@@ -25,6 +25,7 @@ echo "QWEN_CODE: '$QWEN_CODE'"
 echo "CURSOR_AI: '$CURSOR_AI'"
 echo "OPENCODE_AI: '$OPENCODE_AI'"
 echo "CODEX_CLI: '$CODEX_CLI'"
+echo "OR_APP_NAME: '$OR_APP_NAME'"
 
 echo -e "\n=== Environment Detection ==="
 env_result=$(check_env_vars)
