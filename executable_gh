@@ -723,9 +723,98 @@ get_cached_token() {
     return 1
 }
 
+# Function to check as-a-bot authentication status
+check_as_a_bot_status() {
+    local cache_dir="$HOME/.cache/ai-aligned-gh"
+    local cache_file="$cache_dir/token"
+
+    echo "" >&2
+    echo "=================================================================" >&2
+    echo "  as-a-bot GitHub App Status" >&2
+    echo "=================================================================" >&2
+    echo "" >&2
+
+    # Check if we have a cached token
+    if [ ! -f "$cache_file" ]; then
+        echo "  Status: Not authenticated" >&2
+        echo "" >&2
+        echo "  The as-a-bot GitHub App is not currently authenticated." >&2
+        echo "  Authentication will be prompted when you perform operations" >&2
+        echo "  from an AI tool that require proper attribution." >&2
+        echo "" >&2
+        return
+    fi
+
+    local cached_token
+    cached_token=$(cat "$cache_file")
+
+    # Try to verify the token
+    if ! GH_TOKEN="$cached_token" "$GH_BIN" api user >/dev/null 2>&1; then
+        echo "  Status: Invalid token (cached token expired)" >&2
+        echo "" >&2
+        echo "  The cached token has expired." >&2
+        echo "  You will be prompted to re-authenticate when needed." >&2
+        echo "" >&2
+        return
+    fi
+
+    # Check token type
+    if [[ "$cached_token" == ghu_* ]]; then
+        echo "  Status: Authenticated ✓" >&2
+        echo "  Token type: User-to-server (ghu_)" >&2
+        echo "" >&2
+
+        # Get user info
+        local user_login
+        user_login=$(GH_TOKEN="$cached_token" "$GH_BIN" api user --jq '.login' 2>/dev/null)
+
+        if [ -n "$user_login" ]; then
+            echo "  Acting on behalf of: @$user_login" >&2
+        fi
+
+        # Check rate limit to verify token type
+        local rate_limit
+        rate_limit=$(GH_TOKEN="$cached_token" "$GH_BIN" api rate_limit --jq '.rate.limit' 2>/dev/null)
+
+        if [ -n "$rate_limit" ]; then
+            echo "  Rate limit: $rate_limit/hour" >&2
+            if [ "$rate_limit" = "15000" ]; then
+                echo "  Attribution: Actions will show as '@$user_login (via as-a-bot[bot])'" >&2
+            fi
+        fi
+
+        echo "" >&2
+        echo "  To verify app installation in a repository, run:" >&2
+        echo "    cd /path/to/repo && gh api repos/{owner}/{repo}/installation" >&2
+        echo "" >&2
+    else
+        echo "  Status: Authenticated (warning)" >&2
+        echo "  Token type: Unknown (doesn't have ghu_ prefix)" >&2
+        echo "" >&2
+        echo "  The token may not provide proper app attribution." >&2
+        echo "  Consider re-authenticating by removing the cached token:" >&2
+        echo "    rm -f $cache_file" >&2
+        echo "" >&2
+    fi
+}
+
 # Main script
 GH_BIN=$(find_real_gh)
 debug_log "Found gh at: $GH_BIN"
+
+# Special handling for auth status - show both regular gh auth status and as-a-bot status
+if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+    debug_log "Running auth status with as-a-bot checks"
+
+    # First run the regular gh auth status
+    "$GH_BIN" "$@"
+    gh_exit_code=$?
+
+    # Then show as-a-bot authentication status
+    check_as_a_bot_status
+
+    exit $gh_exit_code
+fi
 
 # Detect if an AI tool is running
 AI_TOOL=$(detect_ai_tool)
