@@ -26,6 +26,7 @@ echo "CURSOR_AI: '$CURSOR_AI'"
 echo "OPENCODE_AI: '$OPENCODE_AI'"
 echo "CODEX_CLI: '$CODEX_CLI'"
 echo "OR_APP_NAME: '$OR_APP_NAME'"
+echo "GOOSE_TERMINAL: '$GOOSE_TERMINAL'"
 echo "Note: Crush has no environment variables, detected via process tree only"
 
 echo -e "\n=== Environment Detection ==="

@@ -137,6 +137,7 @@ The wrapper automatically detects:
 | Cursor | Process name + env | `CURSOR_AI` |
 | Droid (Factory AI) | Process name + env | `DROID_CLI` |
 | Gemini (Google) | Process name + env | `GEMINI_CLI` |
+| [Goose](https://github.com/block/goose) (Block) | Process name + env | `GOOSE_TERMINAL` |
 | GitHub Copilot CLI | Process name + env | `GITHUB_COPILOT_CLI_MODE=true` |
 | Kimi CLI | Process name + env | `KIMI_CLI` |
 | OpenCode | Process name + env | `OPENCODE_AI` |
