@@ -77,6 +77,12 @@ check_env_vars() {
         debug_log "Detected Codex via environment variable"
     fi
 
+    # Aider detection
+    if [ "$OR_APP_NAME" = "Aider" ]; then
+        detected="$detected aider"
+        debug_log "Detected Aider via environment variable"
+    fi
+
     # Zed detection (environment variables are always present in Zed terminals)
     # We'll rely more on process tree for Zed
     if [ "$TERM_PROGRAM" = "zed" ] || [ "$ZED_TERM" = "true" ]; then
@@ -150,6 +156,10 @@ check_ps_tree() {
             detected="$detected codex"
             debug_log "Detected Codex in process tree at depth $depth"
         fi
+        if process_contains "$current_pid" "aider"; then
+            detected="$detected aider"
+            debug_log "Detected Aider in process tree at depth $depth"
+        fi
         if process_contains "$current_pid" "qwen"; then
             detected="$detected qwen"
             debug_log "Detected Qwen in process tree at depth $depth"
@@ -221,7 +231,7 @@ detect_ai_tool() {
     debug_log "Process tree detected: '$ps_detected'"
     debug_log "Combined detected: '$all_detected'"
 
-    # Priority order: Amp > Codex > Claude > Gemini > Qwen > Droid > OpenCode > Cursor > Kimi > Copilot > Zed
+    # Priority order: Amp > Codex > Aider > Claude > Gemini > Qwen > Droid > OpenCode > Cursor > Kimi > Copilot > Zed
     # Zed is last because it often hosts other AI tools
     if [[ "$all_detected" =~ "amp" ]]; then
         debug_log "Final result: amp"
@@ -229,6 +239,9 @@ detect_ai_tool() {
     elif [[ "$all_detected" =~ "codex" ]]; then
         debug_log "Final result: codex"
         echo "codex"
+    elif [[ "$all_detected" =~ "aider" ]]; then
+        debug_log "Final result: aider"
+        echo "aider"
     elif [[ "$all_detected" =~ "claude" ]]; then
         debug_log "Final result: claude"
         echo "claude"
