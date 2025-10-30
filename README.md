@@ -133,6 +133,7 @@ The wrapper automatically detects:
 | Amp (Sourcegraph) | Process name + env | `AGENT=amp`, `AMP_HOME` |
 | Claude (Anthropic) | Process name + env | `CLAUDE_CODE`, `ANTHROPIC_SHELL` |
 | Codex CLI (OpenAI) | Process name + env | `CODEX_CLI` |
+| [Crush](https://charm.sh/tools/crush/) (Charm) | Process name only | (detected via process tree) |
 | Cursor | Process name + env | `CURSOR_AI` |
 | Droid (Factory AI) | Process name + env | `DROID_CLI` |
 | Gemini (Google) | Process name + env | `GEMINI_CLI` |
