@@ -944,6 +944,10 @@ execute_gh_with_error_handling() {
     GH_TOKEN="$BOT_TOKEN" "$GH_BIN" "$@" 2>"$stderr_file" &
     local gh_pid=$!
 
+    # Set up trap to kill background gh process on interrupts
+    # This ensures the child process is terminated if the wrapper is cancelled
+    trap 'kill -TERM "$gh_pid" 2>/dev/null; sleep 0.2; kill -KILL "$gh_pid" 2>/dev/null; rm -f "$stderr_file"; exit 130' INT TERM
+
     # Wait for the process with timeout
     local elapsed=0
     local sleep_interval=1
@@ -951,6 +955,10 @@ execute_gh_with_error_handling() {
         if [ $elapsed -ge $timeout_seconds ]; then
             # Timeout reached - kill the gh process
             debug_log "Timeout reached after ${timeout_seconds}s, killing gh process"
+
+            # Reset trap before killing process to avoid recursive trap execution
+            trap - INT TERM
+
             kill -TERM "$gh_pid" 2>/dev/null
             sleep 0.5
             kill -KILL "$gh_pid" 2>/dev/null
@@ -988,6 +996,9 @@ execute_gh_with_error_handling() {
     # Process completed within timeout, get exit code
     wait "$gh_pid"
     exit_code=$?
+
+    # Reset trap now that process has completed
+    trap - INT TERM
 
     debug_log "gh command completed with exit code $exit_code after ${elapsed}s"
 
