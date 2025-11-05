@@ -931,22 +931,85 @@ fi
 execute_gh_with_error_handling() {
     local stderr_file
     local exit_code
-    
+    local timeout_seconds=60  # 1 minute timeout for agent mode
+
     # Create a temporary file for stderr
     stderr_file=$(mktemp)
-    
-    # Execute gh with stderr redirected to temp file
-    GH_TOKEN="$BOT_TOKEN" "$GH_BIN" "$@" 2>"$stderr_file"
+
+    # Execute gh with timeout when AI tool is detected
+    # Use a background process with timeout to detect hanging interactive prompts
+    debug_log "Executing gh with ${timeout_seconds}s timeout for AI agent mode"
+
+    # Start gh in background and capture its PID
+    GH_TOKEN="$BOT_TOKEN" "$GH_BIN" "$@" 2>"$stderr_file" &
+    local gh_pid=$!
+
+    # Set up trap to kill background gh process on interrupts
+    # This ensures the child process is terminated if the wrapper is cancelled
+    trap 'kill -TERM "$gh_pid" 2>/dev/null; sleep 0.2; kill -KILL "$gh_pid" 2>/dev/null; rm -f "$stderr_file"; exit 130' INT TERM
+
+    # Wait for the process with timeout
+    local elapsed=0
+    local sleep_interval=1
+    while kill -0 "$gh_pid" 2>/dev/null; do
+        if [ $elapsed -ge $timeout_seconds ]; then
+            # Timeout reached - kill the gh process
+            debug_log "Timeout reached after ${timeout_seconds}s, killing gh process"
+
+            # Reset trap before killing process to avoid recursive trap execution
+            trap - INT TERM
+
+            kill -TERM "$gh_pid" 2>/dev/null
+            sleep 0.5
+            kill -KILL "$gh_pid" 2>/dev/null
+
+            # Show timeout error with instructions
+            echo "" >&2
+            echo "=================================================================" >&2
+            echo "  GitHub CLI Interactive Mode Timeout" >&2
+            echo "=================================================================" >&2
+            echo "" >&2
+            echo "  AI tool detected: $AI_TOOL" >&2
+            echo "" >&2
+            echo "  The 'gh' command timed out after ${timeout_seconds} seconds." >&2
+            echo "  This usually happens when gh opens an interactive dialog" >&2
+            echo "  that requires user input." >&2
+            echo "" >&2
+            echo "  To fix this, run the command in non-interactive mode by" >&2
+            echo "  piping the output to cat:" >&2
+            echo "" >&2
+            echo "    gh $* | cat" >&2
+            echo "" >&2
+            echo "  Or use command-line flags to avoid interactive prompts." >&2
+            echo "  For example, 'gh pr create' can use --title and --body flags" >&2
+            echo "  instead of opening an editor." >&2
+            echo "" >&2
+
+            rm -f "$stderr_file"
+            exit 124  # Standard timeout exit code
+        fi
+
+        sleep $sleep_interval
+        elapsed=$((elapsed + sleep_interval))
+    done
+
+    # Process completed within timeout, get exit code
+    wait "$gh_pid"
     exit_code=$?
-    
+
+    # Reset trap now that process has completed
+    trap - INT TERM
+
+    debug_log "gh command completed with exit code $exit_code after ${elapsed}s"
+
     # If command failed, check for specific GitHub App errors
     if [ $exit_code -ne 0 ]; then
         local stderr_content
         stderr_content=$(cat "$stderr_file")
-        
+
         debug_log "gh command failed with exit code $exit_code"
         debug_log "stderr: $stderr_content"
-        
+
         # Check for GitHub App not installed error
         if echo "$stderr_content" | grep -qi "Resource not accessible by integration"; then
             echo "" >&2
@@ -971,13 +1034,13 @@ execute_gh_with_error_handling() {
             rm -f "$stderr_file"
             exit 1
         fi
-        
+
         # For other errors, just show the original error and exit
         cat "$stderr_file" >&2
         rm -f "$stderr_file"
         exit $exit_code
     fi
-    
+
     # Clean up temp file on success
     rm -f "$stderr_file"
     exit 0
