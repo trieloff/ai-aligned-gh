@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# This is a test comment for PR creation.
+
 # gh wrapper - Automatically detect AI tools and use bot token attribution via as-a-bot service
 # This wrapper intercepts gh CLI calls and exchanges tokens when AI usage is detected
 
