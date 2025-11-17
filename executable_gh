@@ -60,7 +60,7 @@ check_env_vars() {
     fi
 
     # Cursor detection
-    if [ -n "$CURSOR_AI" ]; then
+    if [ -n "$CURSOR_AGENT" ]; then
         detected="$detected cursor"
         debug_log "Detected Cursor via environment variable"
     fi
@@ -192,7 +192,7 @@ check_ps_tree() {
             detected="$detected opencode"
             debug_log "Detected OpenCode in process tree at depth $depth"
         fi
-        if process_contains "$current_pid" "cursor"; then
+        if process_contains "$current_pid" "cursor-agent"; then
             detected="$detected cursor"
             debug_log "Detected Cursor in process tree at depth $depth"
         fi
