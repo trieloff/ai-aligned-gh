@@ -123,6 +123,12 @@ check_env_vars() {
         debug_log "Detected Goose via environment variable"
     fi
 
+    # Auggie detection (Augment Code)
+    if [ -n "$AUGMENT_API_TOKEN" ]; then
+        detected="$detected auggie"
+        debug_log "Detected Auggie via environment variable"
+    fi
+
     echo "$detected"
 }
 
@@ -210,6 +216,11 @@ check_ps_tree() {
             detected="$detected goose"
             debug_log "Detected Goose in process tree at depth $depth"
         fi
+        # Auggie detection - look for auggie in process command
+        if process_contains "$current_pid" "auggie"; then
+            detected="$detected auggie"
+            debug_log "Detected Auggie in process tree at depth $depth"
+        fi
         # Droid detection - use word boundary to avoid matching android-studio, etc.
         if [[ "$OSTYPE" == "darwin"* ]]; then
             if ps -p "$current_pid" -o comm= 2>/dev/null | grep -qiw "droid" || \
@@ -250,10 +261,11 @@ detect_ai_tool() {
     debug_log "Process tree detected: '$ps_detected'"
     debug_log "Combined detected: '$all_detected'"
 
-    # Priority order: Amp > Codex > Aider > Claude > Gemini > Qwen > Droid > OpenCode > Cursor > Kimi > Copilot > Crush > Goose > Zed
+    # Priority order: Amp > Codex > Aider > Claude > Gemini > Qwen > Droid > OpenCode > Cursor > Kimi > Copilot > Crush > Goose > Auggie > Zed
     # Zed is last because it often hosts other AI tools
     # Crush takes precedence over Zed but after other AI tools
     # Goose comes after Crush but before Zed
+    # Auggie comes after Goose but before Zed
     if [[ "$all_detected" =~ "amp" ]]; then
         debug_log "Final result: amp"
         echo "amp"
@@ -293,6 +305,9 @@ detect_ai_tool() {
     elif [[ "$all_detected" =~ "goose" ]]; then
         debug_log "Final result: goose"
         echo "goose"
+    elif [[ "$all_detected" =~ "auggie" ]]; then
+        debug_log "Final result: auggie"
+        echo "auggie"
     elif [[ "$all_detected" =~ "zed" ]]; then
         debug_log "Final result: zed"
         echo "zed"

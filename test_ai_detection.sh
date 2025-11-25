@@ -27,6 +27,7 @@ echo "OPENCODE_AI: '$OPENCODE_AI'"
 echo "CODEX_CLI: '$CODEX_CLI'"
 echo "OR_APP_NAME: '$OR_APP_NAME'"
 echo "GOOSE_TERMINAL: '$GOOSE_TERMINAL'"
+echo "AUGMENT_API_TOKEN: '$AUGMENT_API_TOKEN'"
 echo "Note: Crush has no environment variables, detected via process tree only"
 
 echo -e "\n=== Environment Detection ==="
