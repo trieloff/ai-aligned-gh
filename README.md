@@ -119,6 +119,7 @@ Force AI detection for testing:
 ```bash
 # Simulate different AI environments
 OR_APP_NAME=Aider gh issue list
+AUGMENT_API_TOKEN=test gh issue list
 CLAUDE_CODE=1 gh issue list
 CURSOR_AI=1 gh pr view 123
 GEMINI_CLI=1 gh repo clone user/repo
@@ -132,6 +133,7 @@ The wrapper automatically detects:
 | AI Tool | Detection Method | Environment Variable |
 |---------|------------------|---------------------|
 | [Aider](https://aider.chat/) | Process name + env | `OR_APP_NAME=Aider` |
+| Auggie (Augment Code) | Process name + env | `AUGMENT_API_TOKEN` |
 | Amp (Sourcegraph) | Process name + env | `AGENT=amp`, `AMP_HOME` |
 | Claude (Anthropic) | Process name + env | `CLAUDE_CODE`, `ANTHROPIC_SHELL` |
 | Codex CLI (OpenAI) | Process name + env | `CODEX_CLI` |

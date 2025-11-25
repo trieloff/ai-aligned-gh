@@ -77,12 +77,16 @@ fi
 
 # Test 4: Test AI detection
 print_test "Testing AI detection..."
-for tool in CLAUDE_CODE CURSOR_AI GEMINI_CLI QWEN_CODE ZED_AI OPENCODE_AI CODEX_CLI KIMI_CLI; do
-    tool_name=$(echo "$tool" | cut -d'_' -f1 | tr '[:upper:]' '[:lower:]')
-    
+for tool in CLAUDE_CODE CURSOR_AI GEMINI_CLI QWEN_CODE ZED_AI OPENCODE_AI CODEX_CLI KIMI_CLI AUGMENT_API_TOKEN; do
+    if [ "$tool" = "AUGMENT_API_TOKEN" ]; then
+        tool_name="auggie"
+    else
+        tool_name=$(echo "$tool" | cut -d'_' -f1 | tr '[:upper:]' '[:lower:]')
+    fi
+
     # Run with debug to check detection
     OUTPUT=$(env GH_AI_DEBUG=true "$tool=1" gh --version 2>&1)
-    
+
     if echo "$OUTPUT" | grep -qi "detected.*$tool_name"; then
         print_pass "  ✓ $tool_name detection works"
     else

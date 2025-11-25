@@ -36,7 +36,7 @@ fi
 echo ""
 echo -e "${BLUE}=== AI Tool Priority Order Tests ===${NC}"
 echo ""
-echo "Expected priority: Amp > Codex > Claude > Gemini > Qwen > Droid > OpenCode > Cursor > Kimi > Copilot > Crush > Goose > Zed"
+echo "Expected priority: Amp > Codex > Aider > Claude > Gemini > Qwen > Droid > OpenCode > Cursor > Kimi > Copilot > Crush > Goose > Auggie > Zed"
 echo ""
 
 # Helper function to test detection
@@ -117,10 +117,17 @@ test_detection "Zed + Goose" "goose" "ZED_TERM=true" "GOOSE_TERMINAL=1"
 # Test 14: Priority order verification - Goose > Zed
 test_detection "Goose + Zed" "goose" "GOOSE_TERMINAL=1" "ZED_TERM=true"
 
+# Test 15: Auggie + Zed (Auggie should win - comes before Zed)
+test_detection "Auggie + Zed" "auggie" "AUGMENT_API_TOKEN=test" "ZED_TERM=true"
+
+# Test 16: Priority order verification - Goose > Auggie
+test_detection "Goose + Auggie" "goose" "GOOSE_TERMINAL=1" "AUGMENT_API_TOKEN=test"
+
 echo ""
 echo -e "${GREEN}=== All Priority Order Tests Passed! ===${NC}"
 echo ""
 echo "✓ Zed is correctly prioritized last"
 echo "✓ All higher-priority tools are selected over Zed when present"
-echo "✓ Priority order is correctly enforced: Amp > Codex > Claude > Gemini > Qwen > Droid > OpenCode > Cursor > Kimi > Copilot > Crush > Goose > Zed"
+echo "✓ Auggie is correctly prioritized before Zed but after Goose"
+echo "✓ Priority order is correctly enforced: Amp > Codex > Aider > Claude > Gemini > Qwen > Droid > OpenCode > Cursor > Kimi > Copilot > Crush > Goose > Auggie > Zed"
 echo ""
