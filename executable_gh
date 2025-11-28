@@ -2,6 +2,7 @@
 
 # gh wrapper - Automatically detect AI tools and use bot token attribution via as-a-bot service
 # This wrapper intercepts gh CLI calls and exchanges tokens when AI usage is detected
+# AI detection powered by am-i-ai: https://github.com/trieloff/am-i-ai
 
 # Configuration
 BROKER_URL="${AS_A_BOT_URL:-https://as-bot-worker.minivelos.workers.dev}"
@@ -15,292 +16,127 @@ debug_log() {
     fi
 }
 
-# Function to check if a process name contains a pattern (case-insensitive)
-process_contains() {
+# --- BEGIN BUNDLED am-i-ai ---
+# Bundled from am-i-ai v1.0.0
+# https://github.com/trieloff/am-i-ai
+#
+# This code is auto-generated. Do not edit manually.
+# To update, run the propagate-updates workflow in am-i-ai.
+
+ami_process_contains() {
     local pid=$1
     local pattern=$2
-
-    # Get process command and name
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS
         ps -p "$pid" -o comm= 2>/dev/null | grep -qi "$pattern" || \
         ps -p "$pid" -o command= 2>/dev/null | grep -qi "$pattern"
     else
-        # Linux
         ps -p "$pid" -o comm= 2>/dev/null | grep -qi "$pattern" || \
         ps -p "$pid" -o cmd= 2>/dev/null | grep -qi "$pattern"
     fi
 }
 
-# Generic function to check environment variables for AI detection
-check_env_vars() {
-    # Phase 1: Environment variable detection
-    # Returns space-separated list of detected AI tools
+ami_check_env() {
     local detected=""
+    [ -n "$CLAUDECODE" ] || [ "$CLAUDE_CODE_ENTRYPOINT" = "cli" ] || [ "$CLAUDE_CODE_ENTRYPOINT" = "sdk-ts" ] && detected="$detected claude"
+    [ -n "$GEMINI_CLI" ] && detected="$detected gemini"
+    [ -n "$QWEN_CODE" ] && detected="$detected qwen"
+    [ -n "$CURSOR_AI" ] && detected="$detected cursor"
+    [ -n "$OPENCODE_AI" ] && detected="$detected opencode"
+    [ -n "$CODEX_CLI" ] || [ -n "$CODEX_SANDBOX" ] && detected="$detected codex"
+    [ "$OR_APP_NAME" = "Aider" ] && detected="$detected aider"
 
-    # Claude Code detection
-    if [ -n "$CLAUDECODE" ] && { [ "$CLAUDE_CODE_ENTRYPOINT" = "cli" ] || [ "$CLAUDE_CODE_ENTRYPOINT" = "sdk-ts" ]; }; then
-        # Additional confidence check: look for Claude processes anywhere in the system
-        if pgrep -f "claude" >/dev/null 2>&1; then
-            detected="$detected claude"
-            debug_log "Detected Claude via environment variable with process confirmation"
+    # Zed detection - distinguish human from AI
+    local tp_lower=$(echo "$TERM_PROGRAM" | tr '[:upper:]' '[:lower:]')
+    if [ -n "$ZED_ENVIRONMENT" ]; then
+        if { [ "$tp_lower" = "zed" ] || [ -n "$ZED_TERM" ]; } && [ "${SHLVL:-1}" -gt 1 ]; then
+            local parent_comm=$(ps -p "$PPID" -o comm= 2>/dev/null | tr '[:upper:]' '[:lower:]')
+            case "$parent_comm" in
+                bash|elvish|zsh|fish|ksh|tcsh|dash|-bash|-elvish|-zsh|-fish|-ksh|-tcsh|-dash) ;;
+                *) detected="$detected zed" ;;
+            esac
         fi
     fi
 
-    # Gemini detection
-    if [ -n "$GEMINI_CLI" ]; then
-        detected="$detected gemini"
-        debug_log "Detected Gemini via environment variable"
-    fi
-
-    # Qwen detection
-    if [ -n "$QWEN_CODE" ]; then
-        detected="$detected qwen"
-        debug_log "Detected Qwen via environment variable"
-    fi
-
-    # Cursor detection
-    if [ -n "$CURSOR_AI" ]; then
-        detected="$detected cursor"
-        debug_log "Detected Cursor via environment variable"
-    fi
-
-    # OpenCode detection
-    if [ -n "$OPENCODE_AI" ]; then
-        detected="$detected opencode"
-        debug_log "Detected OpenCode via environment variable"
-    fi
-
-    # Codex CLI detection (environment opt-in)
-    if [ -n "$CODEX_CLI" ]; then
-        detected="$detected codex"
-        debug_log "Detected Codex via environment variable"
-    fi
-
-    # Aider detection
-    if [ "$OR_APP_NAME" = "Aider" ]; then
-        detected="$detected aider"
-        debug_log "Detected Aider via environment variable"
-    fi
-
-    # Zed detection (environment variables are always present in Zed terminals)
-    # We'll rely more on process tree for Zed
-    if [ "$TERM_PROGRAM" = "zed" ] || [ "$ZED_TERM" = "true" ]; then
-        detected="$detected zed"
-        debug_log "Detected Zed via environment variable"
-    fi
-
-    # Copilot detection
-    if [ "$GITHUB_COPILOT_CLI_MODE" = "true" ]; then
-        detected="$detected copilot"
-        debug_log "Detected Copilot via environment variable"
-    fi
-
-    # Droid detection (Factory AI)
-    if [ -n "$DROID_CLI" ]; then
-        detected="$detected droid"
-        debug_log "Detected Droid via environment variable"
-    fi
-
-    # Amp detection (Sourcegraph)
-    if [ "$AGENT" = "amp" ] || [ -n "$AMP_HOME" ]; then
-        detected="$detected amp"
-        debug_log "Detected Amp via environment variable"
-    fi
-
-    # Kimi CLI detection
-    if [ -n "$KIMI_CLI" ]; then
-        detected="$detected kimi"
-        debug_log "Detected Kimi CLI via environment variable"
-    fi
-
-    # Crush detection (no environment variables, relies on process tree)
-    # Note: Crush is typically detected via process tree only
-
-    # Goose detection (Block)
-    if [ -n "$GOOSE_TERMINAL" ]; then
-        detected="$detected goose"
-        debug_log "Detected Goose via environment variable"
-    fi
-
+    [ "$GITHUB_COPILOT_CLI_MODE" = "true" ] && detected="$detected copilot"
+    [ -n "$DROID_CLI" ] && detected="$detected droid"
+    [ "$AGENT" = "amp" ] || [ -n "$AMP_HOME" ] && detected="$detected amp"
+    [ -n "$KIMI_CLI" ] && detected="$detected kimi"
+    [ "$OR_APP_NAME" = "OpenHands" ] || [ -n "$OR_SITE_URL" ] && detected="$detected openhands"
+    [ -n "$GOOSE_TERMINAL" ] && detected="$detected goose"
+    [ -n "$CLINE_TASK_ID" ] && detected="$detected cline"
+    [ -n "$ROO_CODE_TASK_ID" ] && detected="$detected roo"
+    [ -n "$WINDSURF_SESSION" ] || [ "$TERM_PROGRAM" = "windsurf" ] && detected="$detected windsurf"
     echo "$detected"
 }
 
-# Generic function to walk process tree and detect AI tools
-check_ps_tree() {
-    # Phase 2: Process tree detection
-    # Returns space-separated list of detected AI tools
-    local detected=""
-    local current_pid=$$
-    local max_depth=10
-    local depth=0
-
-    debug_log "Starting process tree detection from PID $current_pid"
-
+ami_check_ps_tree() {
+    local detected="" current_pid=$$ max_depth=10 depth=0
     while [ $depth -lt $max_depth ]; do
-        # Get parent PID
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            current_pid=$(ps -p "$current_pid" -o ppid= 2>/dev/null | tr -d ' ')
-        else
-            current_pid=$(ps -p "$current_pid" -o ppid= 2>/dev/null | tr -d ' ')
-        fi
+        current_pid=$(ps -p "$current_pid" -o ppid= 2>/dev/null | tr -d ' ')
+        [ -z "$current_pid" ] || [ "$current_pid" -eq 1 ] || [ "$current_pid" -eq 0 ] && break
 
-        # Check if we've reached the top
-        if [ -z "$current_pid" ] || [ "$current_pid" -eq 1 ] || [ "$current_pid" -eq 0 ]; then
-            debug_log "Reached top of process tree at depth $depth"
-            break
-        fi
+        ami_process_contains "$current_pid" "claude" && detected="$detected claude"
+        ami_process_contains "$current_pid" "gemini" && detected="$detected gemini"
+        ami_process_contains "$current_pid" "codex" && detected="$detected codex"
+        ami_process_contains "$current_pid" "aider" && detected="$detected aider"
+        ami_process_contains "$current_pid" "qwen" && detected="$detected qwen"
+        ami_process_contains "$current_pid" "opencode" && detected="$detected opencode"
+        ami_process_contains "$current_pid" "cursor" && detected="$detected cursor"
+        ami_process_contains "$current_pid" "kimi" && detected="$detected kimi"
+        ami_process_contains "$current_pid" "crush" && detected="$detected crush"
+        ami_process_contains "$current_pid" "goose" && detected="$detected goose"
+        ami_process_contains "$current_pid" "cline" && detected="$detected cline"
+        ami_process_contains "$current_pid" "roo" && detected="$detected roo"
+        ami_process_contains "$current_pid" "windsurf" && detected="$detected windsurf"
 
-        debug_log "Checking PID $current_pid at depth $depth"
-
-        if process_contains "$current_pid" "claude"; then
-            detected="$detected claude"
-            debug_log "Detected Claude in process tree at depth $depth"
-        fi
-        if process_contains "$current_pid" "gemini"; then
-            detected="$detected gemini"
-            debug_log "Detected Gemini in process tree at depth $depth"
-        fi
-        if process_contains "$current_pid" "codex"; then
-            detected="$detected codex"
-            debug_log "Detected Codex in process tree at depth $depth"
-        fi
-        if process_contains "$current_pid" "aider"; then
-            detected="$detected aider"
-            debug_log "Detected Aider in process tree at depth $depth"
-        fi
-        if process_contains "$current_pid" "qwen"; then
-            detected="$detected qwen"
-            debug_log "Detected Qwen in process tree at depth $depth"
-        fi
-        if process_contains "$current_pid" "zed"; then
-            detected="$detected zed"
-            debug_log "Detected Zed in process tree at depth $depth"
-            # Special case: When we find Zed, also check for Claude processes that are siblings
-            # (children of the same Zed process) to handle nested AI scenarios
-            local zed_children
-            zed_children=$(pgrep -P "$current_pid" 2>/dev/null)
-            for child_pid in $zed_children; do
-                if process_contains "$child_pid" "claude"; then
-                    detected="$detected claude"
-                    debug_log "Detected nested Claude under Zed at depth $depth"
-                    break
-                fi
-            done
-        fi
-        if process_contains "$current_pid" "opencode"; then
-            detected="$detected opencode"
-            debug_log "Detected OpenCode in process tree at depth $depth"
-        fi
-        if process_contains "$current_pid" "cursor"; then
-            detected="$detected cursor"
-            debug_log "Detected Cursor in process tree at depth $depth"
-        fi
-        if process_contains "$current_pid" "kimi"; then
-            detected="$detected kimi"
-            debug_log "Detected Kimi CLI in process tree at depth $depth"
-        fi
-        # Crush detection - look for crush in process command
-        if process_contains "$current_pid" "crush"; then
-            detected="$detected crush"
-            debug_log "Detected Crush in process tree at depth $depth"
-        fi
-        # Goose detection - look for goose in process command
-        if process_contains "$current_pid" "goose"; then
-            detected="$detected goose"
-            debug_log "Detected Goose in process tree at depth $depth"
-        fi
-        # Droid detection - use word boundary to avoid matching android-studio, etc.
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            if ps -p "$current_pid" -o comm= 2>/dev/null | grep -qiw "droid" || \
-               ps -p "$current_pid" -o command= 2>/dev/null | grep -qiw "droid"; then
-                detected="$detected droid"
-                debug_log "Detected Droid in process tree at depth $depth"
-            fi
-        else
-            if ps -p "$current_pid" -o comm= 2>/dev/null | grep -qiw "droid" || \
-               ps -p "$current_pid" -o cmd= 2>/dev/null | grep -qiw "droid"; then
-                detected="$detected droid"
-                debug_log "Detected Droid in process tree at depth $depth"
+        if ami_process_contains "$current_pid" "zed"; then
+            local tp_lower=$(echo "$TERM_PROGRAM" | tr '[:upper:]' '[:lower:]')
+            if { [ "$tp_lower" = "zed" ] || [ -n "$ZED_TERM" ]; } && [ "${SHLVL:-1}" -gt 1 ]; then
+                local parent_comm=$(ps -p "$PPID" -o comm= 2>/dev/null | tr '[:upper:]' '[:lower:]')
+                case "$parent_comm" in
+                    bash|elvish|zsh|fish|ksh|tcsh|dash|-bash|-elvish|-zsh|-fish|-ksh|-tcsh|-dash) ;;
+                    *) detected="$detected zed" ;;
+                esac
             fi
         fi
 
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            { ps -p "$current_pid" -o comm= 2>/dev/null | grep -qiw "droid" || \
+              ps -p "$current_pid" -o command= 2>/dev/null | grep -qiw "droid"; } && detected="$detected droid"
+        else
+            { ps -p "$current_pid" -o comm= 2>/dev/null | grep -qiw "droid" || \
+              ps -p "$current_pid" -o cmd= 2>/dev/null | grep -qiw "droid"; } && detected="$detected droid"
+        fi
         depth=$((depth + 1))
     done
-
     echo "$detected"
 }
 
-# Main AI detection function with proper two-phase approach
-detect_ai_tool() {
-    debug_log "Starting AI detection"
-    
-    # Phase 1: Environment variable detection
-    local env_detected
-    env_detected=$(check_env_vars)
-
-    # Phase 2: Process tree detection
-    local ps_detected
-    ps_detected=$(check_ps_tree)
-
-    # Combine results and apply priority order
-    local all_detected="$env_detected $ps_detected"
-
-    debug_log "Environment detected: '$env_detected'"
-    debug_log "Process tree detected: '$ps_detected'"
-    debug_log "Combined detected: '$all_detected'"
-
-    # Priority order: Amp > Codex > Aider > Claude > Gemini > Qwen > Droid > OpenCode > Cursor > Kimi > Copilot > Crush > Goose > Zed
-    # Zed is last because it often hosts other AI tools
-    # Crush takes precedence over Zed but after other AI tools
-    # Goose comes after Crush but before Zed
-    if [[ "$all_detected" =~ "amp" ]]; then
-        debug_log "Final result: amp"
-        echo "amp"
-    elif [[ "$all_detected" =~ "codex" ]]; then
-        debug_log "Final result: codex"
-        echo "codex"
-    elif [[ "$all_detected" =~ "aider" ]]; then
-        debug_log "Final result: aider"
-        echo "aider"
-    elif [[ "$all_detected" =~ "claude" ]]; then
-        debug_log "Final result: claude"
-        echo "claude"
-    elif [[ "$all_detected" =~ "gemini" ]]; then
-        debug_log "Final result: gemini"
-        echo "gemini"
-    elif [[ "$all_detected" =~ "qwen" ]]; then
-        debug_log "Final result: qwen"
-        echo "qwen"
-    elif [[ "$all_detected" =~ "droid" ]]; then
-        debug_log "Final result: droid"
-        echo "droid"
-    elif [[ "$all_detected" =~ "opencode" ]]; then
-        debug_log "Final result: opencode"
-        echo "opencode"
-    elif [[ "$all_detected" =~ "cursor" ]]; then
-        debug_log "Final result: cursor"
-        echo "cursor"
-    elif [[ "$all_detected" =~ "kimi" ]]; then
-        debug_log "Final result: kimi"
-        echo "kimi"
-    elif [[ "$all_detected" =~ "copilot" ]]; then
-        debug_log "Final result: copilot"
-        echo "copilot"
-    elif [[ "$all_detected" =~ "crush" ]]; then
-        debug_log "Final result: crush"
-        echo "crush"
-    elif [[ "$all_detected" =~ "goose" ]]; then
-        debug_log "Final result: goose"
-        echo "goose"
-    elif [[ "$all_detected" =~ "zed" ]]; then
-        debug_log "Final result: zed"
-        echo "zed"
-    else
-        debug_log "Final result: none"
-        echo "none"
-    fi
+ami_detect() {
+    local all_detected="$(ami_check_env) $(ami_check_ps_tree)"
+    [[ "$all_detected" =~ "amp" ]] && echo "amp" && return
+    [[ "$all_detected" =~ "codex" ]] && echo "codex" && return
+    [[ "$all_detected" =~ "aider" ]] && echo "aider" && return
+    [[ "$all_detected" =~ "claude" ]] && echo "claude" && return
+    [[ "$all_detected" =~ "gemini" ]] && echo "gemini" && return
+    [[ "$all_detected" =~ "qwen" ]] && echo "qwen" && return
+    [[ "$all_detected" =~ "droid" ]] && echo "droid" && return
+    [[ "$all_detected" =~ "opencode" ]] && echo "opencode" && return
+    [[ "$all_detected" =~ "cursor" ]] && echo "cursor" && return
+    [[ "$all_detected" =~ "copilot" ]] && echo "copilot" && return
+    [[ "$all_detected" =~ "kimi" ]] && echo "kimi" && return
+    [[ "$all_detected" =~ "openhands" ]] && echo "openhands" && return
+    [[ "$all_detected" =~ "cline" ]] && echo "cline" && return
+    [[ "$all_detected" =~ "roo" ]] && echo "roo" && return
+    [[ "$all_detected" =~ "windsurf" ]] && echo "windsurf" && return
+    [[ "$all_detected" =~ "crush" ]] && echo "crush" && return
+    [[ "$all_detected" =~ "goose" ]] && echo "goose" && return
+    [[ "$all_detected" =~ "zed" ]] && echo "zed" && return
+    echo "none"
 }
+
+detect_ai_tool() { ami_detect; }
+# --- END BUNDLED am-i-ai ---
 
 # Function to find the real gh executable
 find_real_gh() {
@@ -341,7 +177,7 @@ find_real_gh() {
 parse_repo_flag() {
     local args=("$@")
     local i=0
-    
+
     while [ $i -lt ${#args[@]} ]; do
         case "${args[i]}" in
             --repo)
@@ -363,7 +199,7 @@ parse_repo_flag() {
         esac
         i=$((i + 1))
     done
-    
+
     return 1
 }
 
@@ -371,7 +207,7 @@ parse_repo_flag() {
 is_safe_operation() {
     local cmd="$1"
     local subcommand="$2"
-    
+
     case "$cmd" in
         help|--help|-h|version|--version)
             return 0
@@ -437,7 +273,7 @@ is_safe_operation() {
             fi
             ;;
     esac
-    
+
     return 1
 }
 
@@ -445,7 +281,7 @@ is_safe_operation() {
 get_repo_info() {
     local repo_spec="$1"  # Optional: explicit repo specification
     local name_with_owner
-    
+
     if [ -n "$repo_spec" ]; then
         # Use explicit repo specification
         debug_log "Using explicit repo specification: $repo_spec"
@@ -454,15 +290,15 @@ get_repo_info() {
         # Try to get repo info from current directory using gh
         debug_log "Attempting to get repo info from current directory"
         name_with_owner=$("$GH_BIN" repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null)
-        
+
         if [ -z "$name_with_owner" ] || [ "$name_with_owner" = "null" ]; then
             debug_log "No repository found in current directory"
             return 1
         fi
     fi
-    
+
     debug_log "Found repository: $name_with_owner"
-    
+
     # Split owner/repo
     if [[ "$name_with_owner" =~ ^([^/]+)/(.+)$ ]]; then
         local owner="${BASH_REMATCH[1]}"
@@ -471,7 +307,7 @@ get_repo_info() {
         debug_log "Parsed owner: $owner, repo: $repo"
         return 0
     fi
-    
+
     debug_log "Could not parse owner/repo from: $name_with_owner"
     return 1
 }
@@ -481,61 +317,61 @@ should_ignore_repo() {
     local owner=$1
     local repo=$2
     local config_file="$HOME/.config/ai-aligned-gh/ignorerepos"
-    
+
     debug_log "Looking for ignore file at: $config_file"
-    
+
     # If config file doesn't exist, don't ignore
     if [ ! -f "$config_file" ]; then
         debug_log "Ignore file not found"
         return 1
     fi
-    
+
     debug_log "Found ignore file, checking patterns"
-    
+
     # Check each pattern in the ignore file
     while IFS= read -r pattern || [ -n "$pattern" ]; do
         # Skip empty lines and comments
         if [[ -z "$pattern" ]] || [[ "$pattern" =~ ^[[:space:]]*# ]]; then
             continue
         fi
-        
+
         # Trim whitespace
         pattern=$(echo "$pattern" | xargs)
-        
+
         debug_log "Checking pattern: '$pattern' against '$owner/$repo'"
-        
+
         # Check if pattern matches owner/repo exactly
         if [[ "$owner/$repo" == "$pattern" ]]; then
             debug_log "Repository $owner/$repo matches ignore pattern: $pattern"
             return 0
         fi
-        
+
         # Check if pattern is owner/* (matches all repos in org)
         if [[ "$pattern" == *"/*" ]] && [[ "$owner" == "${pattern%/*}" ]]; then
             debug_log "Repository $owner/$repo matches org pattern: $pattern"
             return 0
         fi
     done < "$config_file"
-    
+
     return 1
 }
 
 # Function to start device flow authentication
 start_device_flow() {
     local scopes="${1:-repo}"
-    
+
     debug_log "Starting device flow authentication with scopes: $scopes"
-    
+
     local response
     response=$(curl -sS -X POST "${BROKER_URL}/user-token/start" \
         -H "Content-Type: application/json" \
         -d "{\"scopes\":\"${scopes}\"}" 2>/dev/null)
-    
+
     if [ -z "$response" ]; then
         debug_log "Failed to start device flow"
         return 1
     fi
-    
+
     echo "$response"
     return 0
 }
@@ -546,28 +382,28 @@ poll_for_token_background() {
     local state_file=$2
     local interval=${3:-5}
     local max_time=${4:-300}  # Max 5 minutes by default
-    
+
     local start_time
     start_time=$(date +%s)
-    
+
     while true; do
         local current_time
         current_time=$(date +%s)
         local elapsed=$((current_time - start_time))
-        
+
         if [ "$elapsed" -gt "$max_time" ]; then
             echo "expired" > "${state_file}.status"
             break
         fi
-        
+
         local response
         response=$(curl -sS -X POST "${BROKER_URL}/user-token/poll" \
             -H "Content-Type: application/json" \
             -d "{\"device_code\":\"${device_code}\"}" 2>/dev/null)
-        
+
         local access_token
         access_token=$(echo "$response" | jq -r '.access_token' 2>/dev/null)
-        
+
         if [ -n "$access_token" ] && [ "$access_token" != "null" ]; then
             # Save the token to cache
             echo "$access_token" > "$HOME/.cache/ai-aligned-gh/token"
@@ -576,10 +412,10 @@ poll_for_token_background() {
             rm -f "$state_file"
             break
         fi
-        
+
         local error
         error=$(echo "$response" | jq -r '.error' 2>/dev/null)
-        
+
         if [ "$error" = "authorization_pending" ] || [ "$error" = "server_error" ]; then
             sleep "$interval"
         elif [ "$error" = "slow_down" ]; then
@@ -598,23 +434,23 @@ get_cached_token() {
     local state_dir="$HOME/.config/ai-aligned-gh/auth"
     local cache_file="$cache_dir/token"
     local state_file="$state_dir/device_flow.json"
-    
+
     # Create directories if they don't exist
     mkdir -p "$cache_dir" "$state_dir"
-    
+
     # Check if cached token exists and is still valid
     if [ -f "$cache_file" ]; then
         local cached_token
         cached_token=$(cat "$cache_file")
-        
+
         # Verify token is still valid and check its type
         local rate_limit
-        
+
         if GH_TOKEN="$cached_token" "$GH_BIN" api user >/dev/null 2>&1; then
             # Check if this is a user-to-server token (ghu_ prefix)
             if [[ "$cached_token" == ghu_* ]]; then
                 debug_log "Using valid user-to-server token (ghu_ prefix)"
-                
+
                 # Optionally check rate limit to confirm it's a proper GitHub App token
                 if [ "$DEBUG" = "true" ]; then
                     rate_limit=$(GH_TOKEN="$cached_token" "$GH_BIN" api rate_limit --jq '.rate.limit' 2>/dev/null)
@@ -623,7 +459,7 @@ get_cached_token() {
             else
                 debug_log "WARNING: Token doesn't have ghu_ prefix, may not have app attribution"
             fi
-            
+
             echo "$cached_token"
             return 0
         else
@@ -631,20 +467,20 @@ get_cached_token() {
             rm -f "$cache_file"
         fi
     fi
-    
+
     # Check if there's an in-progress device flow
     if [ -f "$state_file" ]; then
         local state_age=$(($(date +%s) - $(stat -f %m "$state_file" 2>/dev/null || stat -c %Y "$state_file" 2>/dev/null)))
-        
+
         # If state file is less than 15 minutes old
         if [ $state_age -lt 900 ]; then
             debug_log "Found recent device flow state (${state_age}s old)"
-            
+
             # Check if there's a status file indicating completion
             if [ -f "${state_file}.status" ]; then
                 local status
                 status=$(cat "${state_file}.status")
-                
+
                 if [ "$status" = "completed" ]; then
                     # Token should have been saved, try again
                     rm -f "${state_file}.status"
@@ -665,7 +501,7 @@ get_cached_token() {
                 local user_code verification_uri
                 user_code=$(jq -r '.user_code' "$state_file" 2>/dev/null)
                 verification_uri=$(jq -r '.verification_uri' "$state_file" 2>/dev/null)
-                
+
                 if [ -n "$user_code" ] && [ -n "$verification_uri" ]; then
                     echo "" >&2
                     echo "=================================================================" >&2
@@ -695,49 +531,49 @@ get_cached_token() {
             rm -f "$state_file" "${state_file}.status"
         fi
     fi
-    
+
     # No valid cached token or in-progress flow, start new auth flow
     debug_log "Starting new authentication flow"
-    
+
     # Use device flow for CLI (doesn't require browser redirect)
     debug_log "Starting device flow for CLI authentication"
     flow_response=$(start_device_flow "")
-    
+
     if [ -z "$flow_response" ]; then
         debug_log "Failed to start device flow"
         return 1
     fi
-    
+
     local device_code user_code verification_uri expires_in interval
     device_code=$(echo "$flow_response" | jq -r '.device_code' 2>/dev/null)
     user_code=$(echo "$flow_response" | jq -r '.user_code' 2>/dev/null)
     verification_uri=$(echo "$flow_response" | jq -r '.verification_uri' 2>/dev/null)
     expires_in=$(echo "$flow_response" | jq -r '.expires_in' 2>/dev/null)
     interval=$(echo "$flow_response" | jq -r '.interval' 2>/dev/null)
-    
+
     if [ -z "$device_code" ] || [ -z "$user_code" ] || [ -z "$verification_uri" ]; then
         debug_log "Invalid device flow response"
         return 1
     fi
-    
+
     # Save state to file
     echo "$flow_response" > "$state_file"
     chmod 600 "$state_file"
-    
+
     # Start background polling process (properly detached)
     debug_log "Starting background polling process"
-    
+
     # Export necessary variables and functions for the background process
     export -f poll_for_token_background
     export BROKER_URL
     export HOME
-    
+
     # Start detached background process that will survive parent exit
     nohup bash -c "poll_for_token_background '$device_code' '$state_file' '${interval:-5}' '${expires_in:-900}'" </dev/null >/dev/null 2>&1 &
-    
+
     # Disown the process so it's not killed when this script exits
     disown -h %1
-    
+
     # Show user instructions
     echo "" >&2
     echo "=================================================================" >&2
@@ -759,7 +595,7 @@ get_cached_token() {
     echo "  Authentication will complete in the background." >&2
     echo "  Try your command again after authorizing." >&2
     echo "" >&2
-    
+
     return 1
 }
 
@@ -931,22 +767,22 @@ fi
 execute_gh_with_error_handling() {
     local stderr_file
     local exit_code
-    
+
     # Create a temporary file for stderr
     stderr_file=$(mktemp)
-    
+
     # Execute gh with stderr redirected to temp file
     GH_TOKEN="$BOT_TOKEN" "$GH_BIN" "$@" 2>"$stderr_file"
     exit_code=$?
-    
+
     # If command failed, check for specific GitHub App errors
     if [ $exit_code -ne 0 ]; then
         local stderr_content
         stderr_content=$(cat "$stderr_file")
-        
+
         debug_log "gh command failed with exit code $exit_code"
         debug_log "stderr: $stderr_content"
-        
+
         # Check for GitHub App not installed error
         if echo "$stderr_content" | grep -qi "Resource not accessible by integration"; then
             echo "" >&2
@@ -971,13 +807,13 @@ execute_gh_with_error_handling() {
             rm -f "$stderr_file"
             exit 1
         fi
-        
+
         # For other errors, just show the original error and exit
         cat "$stderr_file" >&2
         rm -f "$stderr_file"
         exit $exit_code
     fi
-    
+
     # Clean up temp file on success
     rm -f "$stderr_file"
     exit 0
