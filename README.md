@@ -357,6 +357,7 @@ Apache 2.0 - See LICENSE file for details
 Part of the **[AI Ecoverse](https://github.com/trieloff/ai-ecoverse)** - a comprehensive ecosystem of tools for AI-assisted development:
 
 - [yolo](https://github.com/trieloff/yolo) - AI CLI launcher with worktree isolation
+- [am-i-ai](https://github.com/trieloff/am-i-ai) - Shared AI detection library (powers this tool)
 - [ai-aligned-git](https://github.com/trieloff/ai-aligned-git) - Git wrapper for safe AI commit practices
 - [vibe-coded-badge-action](https://github.com/trieloff/vibe-coded-badge-action) - Badge showing AI-generated code percentage
 - [gh-workflow-peek](https://github.com/trieloff/gh-workflow-peek) - Smarter GitHub Actions log filtering
