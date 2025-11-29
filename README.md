@@ -60,7 +60,7 @@ $ which -a gh
 
 The wrapper detects AI tools through:
 
-1. **Environment variables**: `CLAUDE_CODE`, `CURSOR_AI`, `GEMINI_CLI`, etc.
+1. **Environment variables**: `CLAUDE_CODE`, `CURSOR_AGENT`, `GEMINI_CLI`, etc.
 2. **Process tree analysis**: Walks up parent processes looking for AI tool signatures
 3. **Process name matching**: Identifies `claude`, `cursor`, `gemini`, etc. in process names
 
@@ -121,7 +121,7 @@ Force AI detection for testing:
 OR_APP_NAME=Aider gh issue list
 AUGMENT_API_TOKEN=test gh issue list
 CLAUDE_CODE=1 gh issue list
-CURSOR_AI=1 gh pr view 123
+CURSOR_AGENT=1 gh pr view 123
 GEMINI_CLI=1 gh repo clone user/repo
 KIMI_CLI=1 gh pr create --title "Test" --body "Testing Kimi detection"
 ```
@@ -138,7 +138,7 @@ The wrapper automatically detects:
 | Claude (Anthropic) | Process name + env | `CLAUDE_CODE`, `ANTHROPIC_SHELL` |
 | Codex CLI (OpenAI) | Process name + env | `CODEX_CLI` |
 | [Crush](https://charm.sh/tools/crush/) (Charm) | Process name only | (detected via process tree) |
-| Cursor | Process name + env | `CURSOR_AI`, `CURSOR_AGENT` |
+| Cursor | Process name + env | `CURSOR_AGENT` |
 | Droid (Factory AI) | Process name + env | `DROID_CLI` |
 | Gemini (Google) | Process name + env | `GEMINI_CLI` |
 | [Goose](https://github.com/block/goose) (Block) | Process name + env | `GOOSE_TERMINAL` |

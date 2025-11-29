@@ -68,9 +68,8 @@ ami_check_env() {
         _ami_debug "Detected Qwen via environment variable"
     fi
 
-    # Cursor detection - support both CURSOR_AGENT and CURSOR_AI for backward compatibility
-    # CURSOR_AGENT is preferred to avoid false positives in Cursor IDE terminals
-    if [ -n "$CURSOR_AGENT" ] || [ -n "$CURSOR_AI" ]; then
+    # Cursor detection - use CURSOR_AGENT to avoid false positives in Cursor IDE terminals
+    if [ -n "$CURSOR_AGENT" ]; then
         detected="$detected cursor"
         _ami_debug "Detected Cursor via environment variable"
     fi
