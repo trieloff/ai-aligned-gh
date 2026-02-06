@@ -40,3 +40,8 @@ jobs:
       run: |
         export PATH="$HOME/.local/bin:$PATH"
         ./test_timeout.sh
+
+    - name: Run fallback tests
+      run: |
+        export PATH="$HOME/.local/bin:$PATH"
+        ./test_fallback.sh

@@ -311,12 +311,15 @@ export PATH="$HOME/.local/bin:$PATH"
 
 ### App Not Installed
 
-If you see warnings about the app not being installed:
+When the `as-a-bot` GitHub App is not installed in a target repository, the wrapper automatically falls back to your regular GitHub token (without bot attribution). The repository is added to the ignore list at `~/.config/ai-aligned-gh/ignorerepos` so future calls skip the bot token attempt entirely.
+
+To enable AI attribution for a repository:
 
 1. Visit https://github.com/apps/as-a-bot
 2. Click "Install" or "Configure"
 3. Select the repositories where you want AI attribution
 4. Save the configuration
+5. Remove the repository from `~/.config/ai-aligned-gh/ignorerepos` if it was auto-added
 
 ### Token Exchange Fails
 
