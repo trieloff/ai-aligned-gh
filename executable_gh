@@ -717,7 +717,7 @@ add_to_ignore_list() {
     mkdir -p "$config_dir"
 
     # Check if already in the file
-    if [ -f "$config_file" ] && grep -qx "$owner/$repo" "$config_file"; then
+    if [ -f "$config_file" ] && grep -Fqx "$owner/$repo" "$config_file"; then
         debug_log "Repository $owner/$repo already in ignore list"
         return 0
     fi

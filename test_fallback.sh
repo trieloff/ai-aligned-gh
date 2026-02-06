@@ -7,6 +7,9 @@
 
 set -e
 
+# Clear GH_TOKEN to prevent inherited tokens from interfering with the mock
+unset GH_TOKEN
+
 # Colors for output
 if [ -t 1 ]; then
     RED='\033[0;31m'
