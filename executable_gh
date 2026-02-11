@@ -1077,7 +1077,8 @@ if [ "$1" = "impersonate" ]; then
         fi
         # Remove matching line (exact match)
         if grep -qxF "$3" "$IGNORE_FILE"; then
-            grep -vxF "$3" "$IGNORE_FILE" > "${IGNORE_FILE}.tmp" && mv "${IGNORE_FILE}.tmp" "$IGNORE_FILE"
+            grep -vxF "$3" "$IGNORE_FILE" > "${IGNORE_FILE}.tmp" || true
+            mv "${IGNORE_FILE}.tmp" "$IGNORE_FILE"
             echo "Removed '$3' from impersonate list."
         else
             echo "'$3' is not in the impersonate list." >&2
@@ -1272,7 +1273,7 @@ execute_gh_with_error_handling() {
         if echo "$stderr_content" | grep -qi "Resource not accessible by integration"; then
             # Determine if the user has admin access to the repo
             local has_admin=""
-            has_admin=$("$GH_BIN" api "repos/$owner/$repo" --jq '.permissions.admin' 2>/dev/null || true)
+            has_admin=$("$GH_BIN" api "repos/$owner/$repo" --jq '.permissions.admin' 2>/dev/null) || true
 
             echo "" >&2
             if [ "$has_admin" = "true" ]; then
@@ -1289,7 +1290,7 @@ execute_gh_with_error_handling() {
                 echo "  4. Grant the required permissions" >&2
                 echo "" >&2
                 echo "  After installation, try your command again." >&2
-            else
+            elif [ "$has_admin" = "false" ]; then
                 echo "=================================================================" >&2
                 echo "  Third-Party Repository — App Not Installed" >&2
                 echo "=================================================================" >&2
@@ -1303,6 +1304,20 @@ execute_gh_with_error_handling() {
                 echo "" >&2
                 echo "  This will use your personal token for AI actions in this" >&2
                 echo "  repository. Actions will appear as you, not as a bot." >&2
+            else
+                echo "=================================================================" >&2
+                echo "  GitHub App Installation Required" >&2
+                echo "=================================================================" >&2
+                echo "" >&2
+                echo "  The 'as-a-bot' GitHub App is not installed on $owner/$repo." >&2
+                echo "" >&2
+                echo "  If you have admin access, install the app:" >&2
+                echo "  1. Visit: https://github.com/apps/as-a-bot" >&2
+                echo "  2. Click 'Install' or 'Configure'" >&2
+                echo "  3. Select the repository: $owner/$repo" >&2
+                echo "" >&2
+                echo "  If this is a third-party repo you cannot administer:" >&2
+                echo "    gh impersonate $owner/$repo" >&2
             fi
             echo "" >&2
             echo "  Original error:" >&2

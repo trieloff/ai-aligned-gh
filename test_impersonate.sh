@@ -46,6 +46,7 @@ echo ""
 # Use a temporary config dir so we don't modify the real one
 HOME=$(mktemp -d)
 export HOME
+trap 'rm -rf "$HOME"' EXIT
 IGNORE_FILE="$HOME/.config/ai-aligned-gh/ignorerepos"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -133,7 +134,31 @@ else
     print_fail "Other entries lost after remove"
 fi
 
-# Test 7: Remove non-existent entry fails
+# Test 7: Remove the last remaining entry
+print_test "Remove last remaining entry leaves empty file"
+output=$("$GH_WRAPPER" impersonate --remove "someorg/*" 2>&1)
+if echo "$output" | grep -q "Removed 'someorg/\*'"; then
+    print_pass "Last entry removal prints confirmation"
+else
+    print_fail "Last entry removal did not print confirmation. Got: $output"
+fi
+if [ ! -s "$IGNORE_FILE" ]; then
+    print_pass "File is empty after removing last entry"
+else
+    print_fail "File still has content after removing last entry"
+fi
+# Verify list now shows empty
+output=$("$GH_WRAPPER" impersonate --list 2>&1)
+if echo "$output" | grep -q "No repositories in impersonate list"; then
+    print_pass "--list shows empty after removing last entry"
+else
+    print_fail "--list did not show empty. Got: $output"
+fi
+
+# Re-add an entry for subsequent tests
+"$GH_WRAPPER" impersonate someorg/* >/dev/null 2>&1
+
+# Test 8: Remove non-existent entry fails
 print_test "Remove non-existent entry fails"
 output=$("$GH_WRAPPER" impersonate --remove nonexistent/repo 2>&1) && rc=$? || rc=$?
 if [ "$rc" -ne 0 ] && echo "$output" | grep -q "is not in the impersonate list"; then
@@ -175,9 +200,6 @@ if echo "$output" | grep -q "someorg/\*"; then
 else
     print_fail "No args did not show entries. Got: $output"
 fi
-
-# Clean up
-rm -rf "$HOME"
 
 echo ""
 if [ "$FAILURES" -eq 0 ]; then
