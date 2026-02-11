@@ -44,7 +44,8 @@ echo -e "${BLUE}=== gh impersonate Test Suite ===${NC}"
 echo ""
 
 # Use a temporary config dir so we don't modify the real one
-export HOME=$(mktemp -d)
+HOME=$(mktemp -d)
+export HOME
 IGNORE_FILE="$HOME/.config/ai-aligned-gh/ignorerepos"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
