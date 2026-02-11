@@ -1041,6 +1041,79 @@ if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
     exit $gh_exit_code
 fi
 
+# Handle `gh impersonate` subcommand
+if [ "$1" = "impersonate" ]; then
+    IGNORE_FILE="$HOME/.config/ai-aligned-gh/ignorerepos"
+
+    # --list or no args: show current ignore list
+    if [ -z "$2" ] || [ "$2" = "--list" ]; then
+        if [ ! -f "$IGNORE_FILE" ] || [ ! -s "$IGNORE_FILE" ]; then
+            echo "No repositories in impersonate list."
+            echo ""
+            echo "Use 'gh impersonate <owner/repo>' to add a repository."
+        else
+            echo "Repositories where AI attribution is skipped:"
+            echo ""
+            while IFS= read -r line || [ -n "$line" ]; do
+                if [[ -n "$line" ]] && [[ ! "$line" =~ ^[[:space:]]*# ]]; then
+                    echo "  $line"
+                fi
+            done < "$IGNORE_FILE"
+            echo ""
+            echo "Use 'gh impersonate --remove <owner/repo>' to remove an entry."
+        fi
+        exit 0
+    fi
+
+    # --remove <entry>
+    if [ "$2" = "--remove" ]; then
+        if [ -z "$3" ]; then
+            echo "Usage: gh impersonate --remove <owner/repo>" >&2
+            exit 1
+        fi
+        if [ ! -f "$IGNORE_FILE" ]; then
+            echo "Nothing to remove — impersonate list is empty." >&2
+            exit 1
+        fi
+        # Remove matching line (exact match)
+        if grep -qxF "$3" "$IGNORE_FILE"; then
+            grep -vxF "$3" "$IGNORE_FILE" > "${IGNORE_FILE}.tmp" && mv "${IGNORE_FILE}.tmp" "$IGNORE_FILE"
+            echo "Removed '$3' from impersonate list."
+        else
+            echo "'$3' is not in the impersonate list." >&2
+            exit 1
+        fi
+        exit 0
+    fi
+
+    # Add <owner/repo> or <owner/*>
+    ENTRY="$2"
+
+    # Validate format: owner/repo or owner/*
+    if ! echo "$ENTRY" | grep -qE '^[A-Za-z0-9._-]+/([A-Za-z0-9._-]+|\*)$'; then
+        echo "Invalid format: '$ENTRY'" >&2
+        echo "Expected: owner/repo or owner/*" >&2
+        exit 1
+    fi
+
+    # Ensure config directory exists
+    mkdir -p "$(dirname "$IGNORE_FILE")"
+
+    # Check for duplicate (idempotent)
+    if [ -f "$IGNORE_FILE" ] && grep -qxF "$ENTRY" "$IGNORE_FILE"; then
+        echo "'$ENTRY' is already in the impersonate list."
+        exit 0
+    fi
+
+    echo "$ENTRY" >> "$IGNORE_FILE"
+    echo "Added '$ENTRY' to impersonate list."
+    echo ""
+    echo "AI actions in this repository will now use your personal token"
+    echo "instead of the as-a-bot app. Attribution will appear as you,"
+    echo "not as a bot acting on your behalf."
+    exit 0
+fi
+
 # Detect if an AI tool is running
 AI_TOOL=$(detect_ai_tool)
 
@@ -1197,21 +1270,40 @@ execute_gh_with_error_handling() {
 
         # Check for GitHub App not installed error
         if echo "$stderr_content" | grep -qi "Resource not accessible by integration"; then
+            # Determine if the user has admin access to the repo
+            local has_admin=""
+            has_admin=$("$GH_BIN" api "repos/$owner/$repo" --jq '.permissions.admin' 2>/dev/null || true)
+
             echo "" >&2
-            echo "=================================================================" >&2
-            echo "  GitHub App Installation Required" >&2
-            echo "=================================================================" >&2
-            echo "" >&2
-            echo "  The 'as-a-bot' GitHub App is not installed in this repository." >&2
-            echo "" >&2
-            echo "  To enable AI-aligned operations, please:" >&2
-            echo "" >&2
-            echo "  1. Visit: https://github.com/apps/as-a-bot" >&2
-            echo "  2. Click 'Install' or 'Configure'" >&2
-            echo "  3. Select the repository: $owner/$repo" >&2
-            echo "  4. Grant the required permissions" >&2
-            echo "" >&2
-            echo "  After installation, try your command again." >&2
+            if [ "$has_admin" = "true" ]; then
+                echo "=================================================================" >&2
+                echo "  GitHub App Installation Required" >&2
+                echo "=================================================================" >&2
+                echo "" >&2
+                echo "  The 'as-a-bot' GitHub App is not installed on $owner/$repo." >&2
+                echo "  You have admin access, so you can install it:" >&2
+                echo "" >&2
+                echo "  1. Visit: https://github.com/apps/as-a-bot" >&2
+                echo "  2. Click 'Install' or 'Configure'" >&2
+                echo "  3. Select the repository: $owner/$repo" >&2
+                echo "  4. Grant the required permissions" >&2
+                echo "" >&2
+                echo "  After installation, try your command again." >&2
+            else
+                echo "=================================================================" >&2
+                echo "  Third-Party Repository — App Not Installed" >&2
+                echo "=================================================================" >&2
+                echo "" >&2
+                echo "  The 'as-a-bot' GitHub App is not installed on $owner/$repo" >&2
+                echo "  and you don't have permission to install it." >&2
+                echo "" >&2
+                echo "  To proceed without bot attribution for this repo, run:" >&2
+                echo "" >&2
+                echo "    gh impersonate $owner/$repo" >&2
+                echo "" >&2
+                echo "  This will use your personal token for AI actions in this" >&2
+                echo "  repository. Actions will appear as you, not as a bot." >&2
+            fi
             echo "" >&2
             echo "  Original error:" >&2
             echo "  $stderr_content" >&2

@@ -126,6 +126,26 @@ GEMINI_CLI=1 gh repo clone user/repo
 KIMI_CLI=1 gh pr create --title "Test" --body "Testing Kimi detection"
 ```
 
+### Working with Third-Party Repos
+
+When the `as-a-bot` app isn't installed on a repository you don't own, you can't install it yourself. Use `gh impersonate` to explicitly opt in to using your personal token for that repo:
+
+```bash
+# Skip bot attribution for a specific repo
+gh impersonate someorg/somerepo
+
+# Skip for all repos in an org
+gh impersonate someorg/*
+
+# See which repos are in the list
+gh impersonate --list
+
+# Remove a repo from the list
+gh impersonate --remove someorg/somerepo
+```
+
+This is an explicit opt-in — the wrapper will still fail loudly for repos not in the list, so you always know when attribution is missing.
+
 ## 🤖 Supported AI Tools
 
 The wrapper automatically detects:
@@ -309,14 +329,28 @@ which -a gh
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-### App Not Installed
+### App Not Installed (Your Repo)
 
-If you see warnings about the app not being installed:
+If you see "GitHub App Installation Required" for a repo you own:
 
 1. Visit https://github.com/apps/as-a-bot
 2. Click "Install" or "Configure"
-3. Select the repositories where you want AI attribution
+3. Select the repository where you want AI attribution
 4. Save the configuration
+
+### App Not Installed (Third-Party Repo)
+
+If you see "Third-Party Repository — App Not Installed" for a repo you don't control:
+
+```bash
+# Opt in to using your personal token for this repo
+gh impersonate owner/repo
+
+# Or for an entire org
+gh impersonate owner/*
+```
+
+This skips bot attribution for that repo. See `gh impersonate --list` to review.
 
 ### Token Exchange Fails
 
