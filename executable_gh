@@ -1077,7 +1077,13 @@ if [ "$1" = "impersonate" ]; then
         fi
         # Remove matching line (exact match)
         if grep -qxF "$3" "$IGNORE_FILE"; then
-            grep -vxF "$3" "$IGNORE_FILE" > "${IGNORE_FILE}.tmp" || true
+            grep -vxF "$3" "$IGNORE_FILE" > "${IGNORE_FILE}.tmp"
+            status=$?
+            if [ "$status" -gt 1 ]; then
+                echo "Error updating impersonate list." >&2
+                rm -f "${IGNORE_FILE}.tmp"
+                exit 1
+            fi
             mv "${IGNORE_FILE}.tmp" "$IGNORE_FILE"
             echo "Removed '$3' from impersonate list."
         else
@@ -1307,6 +1313,7 @@ execute_gh_with_error_handling() {
             else
                 echo "=================================================================" >&2
                 echo "  GitHub App Installation Required" >&2
+                echo "  (Could not determine your access level for this repository.)" >&2
                 echo "=================================================================" >&2
                 echo "" >&2
                 echo "  The 'as-a-bot' GitHub App is not installed on $owner/$repo." >&2

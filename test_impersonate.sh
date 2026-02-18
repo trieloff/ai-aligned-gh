@@ -106,7 +106,7 @@ fi
 
 # Test 5: Add an org wildcard
 print_test "Add org wildcard"
-output=$("$GH_WRAPPER" impersonate someorg/* 2>&1)
+output=$("$GH_WRAPPER" impersonate "someorg/*" 2>&1)
 if echo "$output" | grep -q "Added 'someorg/\*'"; then
     print_pass "Org wildcard accepted"
 else
@@ -156,7 +156,7 @@ else
 fi
 
 # Re-add an entry for subsequent tests
-"$GH_WRAPPER" impersonate someorg/* >/dev/null 2>&1
+"$GH_WRAPPER" impersonate "someorg/*" >/dev/null 2>&1
 
 # Test 8: Remove non-existent entry fails
 print_test "Remove non-existent entry fails"
