@@ -626,16 +626,68 @@ is_safe_operation() {
                     ;;
             esac
             ;;
+        search)
+            return 0
+            ;;
+        status)
+            return 0
+            ;;
+        extension)
+            return 0
+            ;;
         api)
-            # API calls with GET method only
-            if [[ "$*" =~ --method[[:space:]]+GET|^GET[[:space:]] ]] || [[ ! "$*" =~ --method ]]; then
-                # Default API calls are GET, but be conservative
-                case "$subcommand" in
-                    user|users/*|rate_limit|repos/*/|orgs/*)
-                        return 0
+            # Robust method detection for gh api:
+            # - Supports --method/--method=/-X/-X= (case-insensitive)
+            # - graphql endpoint defaults to POST
+            # - Body flags (-f, -F, --field, --raw-field, --input) imply POST
+            local method=""
+            local has_body_flag=false
+            local has_graphql=false
+            local -a api_args=("$@")
+            local i=0
+            # Skip past the "api" command itself (index 0 in api_args is $1=cmd="api")
+            # For api, there is no subcommand — flags and endpoint start at index 1
+            i=1
+            while [ $i -lt ${#api_args[@]} ]; do
+                local arg="${api_args[$i]}"
+                case "$arg" in
+                    --method=*|-X=*)
+                        method="${arg#*=}"
+                        ;;
+                    --method|-X)
+                        if [ $((i + 1)) -lt ${#api_args[@]} ]; then
+                            i=$((i + 1))
+                            method="${api_args[$i]}"
+                        fi
+                        ;;
+                    -X[A-Za-z]*)
+                        # Concatenated form: -XPOST, -XGET, etc.
+                        method="${arg#-X}"
+                        ;;
+                    -f|-F|--field|--raw-field|--input)
+                        has_body_flag=true
+                        ;;
+                    graphql|/graphql)
+                        has_graphql=true
                         ;;
                 esac
+                i=$((i + 1))
+            done
+            # Normalize method to uppercase
+            method="$(echo "$method" | tr '[:lower:]' '[:upper:]')"
+            if [ -n "$method" ]; then
+                # Explicit method specified: safe only if GET
+                if [ "$method" = "GET" ]; then
+                    return 0
+                fi
+                return 1
             fi
+            # No explicit method: check implicit POST triggers
+            if $has_graphql || $has_body_flag; then
+                return 1
+            fi
+            # Default is GET → safe
+            return 0
             ;;
     esac
     
