@@ -660,10 +660,14 @@ is_safe_operation() {
                             method="${api_args[$i]}"
                         fi
                         ;;
+                    -X[A-Za-z]*)
+                        # Concatenated form: -XPOST, -XGET, etc.
+                        method="${arg#-X}"
+                        ;;
                     -f|-F|--field|--raw-field|--input)
                         has_body_flag=true
                         ;;
-                    graphql)
+                    graphql|/graphql)
                         has_graphql=true
                         ;;
                 esac

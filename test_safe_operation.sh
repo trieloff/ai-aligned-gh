@@ -83,6 +83,15 @@ assert_unsafe "api --raw-field key=val repos/owner/repo"       api --raw-field k
 assert_unsafe "api --input file.json repos/owner/repo"         api --input file.json repos/owner/repo
 
 echo ""
+echo "--- API: -X concatenated form ---"
+assert_unsafe "api -XPOST repos/owner/repo"                    api -XPOST repos/owner/repo
+assert_safe  "api -XGET repos/owner/repo"                      api -XGET repos/owner/repo
+
+echo ""
+echo "--- API: /graphql with leading slash ---"
+assert_unsafe "api /graphql"                                    api /graphql
+
+echo ""
 echo "--- API: explicit GET overrides body flags ---"
 assert_safe  "api --method GET -f key=val repos/owner/repo"   api --method GET -f key=val repos/owner/repo
 
