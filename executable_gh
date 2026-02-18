@@ -626,16 +626,22 @@ is_safe_operation() {
                     ;;
             esac
             ;;
+        search)
+            return 0
+            ;;
+        status)
+            return 0
+            ;;
+        extension)
+            return 0
+            ;;
         api)
-            # API calls with GET method only
-            if [[ "$*" =~ --method[[:space:]]+GET|^GET[[:space:]] ]] || [[ ! "$*" =~ --method ]]; then
-                # Default API calls are GET, but be conservative
-                case "$subcommand" in
-                    user|users/*|rate_limit|repos/*/|orgs/*)
-                        return 0
-                        ;;
-                esac
+            # Default gh api method is GET. Only flag as unsafe if an explicit
+            # non-GET method is specified (--method POST/PUT/PATCH/DELETE).
+            if [[ "$*" =~ --method[[:space:]]+(POST|PUT|PATCH|DELETE) ]]; then
+                return 1
             fi
+            return 0
             ;;
     esac
     
