@@ -698,6 +698,10 @@ is_safe_operation() {
         pr|issue|repo|release|gist|workflow|run|secret|variable|codespace|label|ruleset|project)
             ;;  # Known built-in with write potential — not safe by default
         *)
+            # Global flags (e.g. --repo, -R, --hostname) can appear before the
+            # subcommand. If $cmd starts with '-' it is a flag, not an extension
+            # name — fall through to return 1 so the write-path enforcement runs.
+            [[ "$cmd" == -* ]] && return 1
             return 0  # Unknown command = extension dispatch, safe to pass through
             ;;
     esac
