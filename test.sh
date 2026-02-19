@@ -77,7 +77,7 @@ fi
 
 # Test 4: Test AI detection
 print_test "Testing AI detection..."
-for tool in CLAUDE_CODE CURSOR_AI GEMINI_CLI QWEN_CODE ZED_AI OPENCODE_AI CODEX_CLI KIMI_CLI AUGMENT_API_TOKEN; do
+for tool in CLAUDE_CODE CURSOR_AGENT GEMINI_CLI QWEN_CODE ZED_AI OPENCODE_AI CODEX_CLI KIMI_CLI AUGMENT_API_TOKEN; do
     if [ "$tool" = "AUGMENT_API_TOKEN" ]; then
         tool_name="auggie"
     else

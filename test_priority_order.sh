@@ -82,7 +82,7 @@ test_detection "Only Zed" "zed" "ZED_TERM=true"
 test_detection "Zed + Gemini" "gemini" "ZED_TERM=true" "GEMINI_CLI=1"
 
 # Test 3: Zed + Cursor (Cursor should win)
-test_detection "Zed + Cursor" "cursor" "ZED_TERM=true" "CURSOR_AI=1"
+test_detection "Zed + Cursor" "cursor" "ZED_TERM=true" "CURSOR_AGENT=1"
 
 # Test 4: Zed + Kimi (Kimi should win)
 test_detection "Zed + Kimi" "kimi" "ZED_TERM=true" "KIMI_CLI=1"
@@ -109,7 +109,7 @@ test_detection "Claude + Gemini" "claude" "CLAUDECODE=1" "CLAUDE_CODE_ENTRYPOINT
 test_detection "Gemini + Qwen" "gemini" "GEMINI_CLI=1" "QWEN_CODE=1"
 
 # Test 12: Priority order verification - Cursor > Kimi
-test_detection "Cursor + Kimi" "cursor" "CURSOR_AI=1" "KIMI_CLI=1"
+test_detection "Cursor + Kimi" "cursor" "CURSOR_AGENT=1" "KIMI_CLI=1"
 
 # Test 13: Zed + Goose (Goose should win - comes before Zed)
 test_detection "Zed + Goose" "goose" "ZED_TERM=true" "GOOSE_TERMINAL=1"
